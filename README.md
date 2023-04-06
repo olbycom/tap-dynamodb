@@ -76,17 +76,25 @@ Follow these instructions to contribute to this project.
 ### Initialize your Development Environment
 
 ```bash
+# Install pipx if you haven't already
+pip install pipx
+pipx ensurepath
+
+# Restart your terminal here, if needed, to get the updated PATH
 pipx install poetry
-poetry install
+
+# Optional: Install Tox if you want to use it to run auto-formatters, linters, tests, etc.
+pipx install tox
 ```
 
 ### Create and Run Tests
 
-Create tests within the `tap_dynamodb/tests` subfolder and
+Create tests within the `tests` subfolder and
   then run:
 
 ```bash
-poetry run pytest
+pipx run tox -e pytest
+pipx run tox -e pytest -- tests/test_dynamodb.py
 ```
 
 You can also test the `tap-dynamodb` CLI interface directly using `poetry run`:
