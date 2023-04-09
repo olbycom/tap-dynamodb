@@ -1,8 +1,12 @@
 import logging
 import os
+from typing import List
 
 import boto3
+import genson
+import orjson
 from botocore.exceptions import ClientError
+from singer_sdk import typing as th  # JSON Schema typing helpers
 
 
 class DynamoDB:
@@ -44,7 +48,7 @@ class DynamoDB:
             client = aws_session.resource("dynamodb")
         self._client = client
 
-    def list_tables(self):
+    def list_tables(self, filters=None):
         try:
             tables = []
             for table in self._client.tables.all():
@@ -70,7 +74,7 @@ class DynamoDB:
                 if start_key:
                     scan_kwargs["ExclusiveStartKey"] = start_key
                 response = table.scan(**scan_kwargs)
-                yield [self.deserialize_record(item) for item in response.get("Items", [])]
+                yield response.get("Items", [])
                 start_key = response.get("LastEvaluatedKey", None)
                 done = start_key is None
         except ClientError as err:
@@ -81,14 +85,52 @@ class DynamoDB:
             )
             raise
 
-    def get_table_json_schema(
-            self,
-            table_name: str,
-            strategy: str = "infer"
-    ):
-        raise NotImplementedError
+    def get_key_properties(self, table_name):
+        # TODO: use this for required
+        dynamo_schema = self._client.Table(table_name).key_schema
+        return [key.get("AttributeName") for key in dynamo_schema]
+
+    def get_table_json_schema(self, table_name: str, strategy: str = "infer"):
+        properties: List[th.Property] = []
+
+        sample_records = list(
+            self.get_items_iter(
+                table_name, scan_kwargs={"Limit": 100, "ConsistentRead": True}
+            )
+        )[0]
+        if strategy == "infer":
+            builder = genson.SchemaBuilder(schema_uri=None)
+            for record in sample_records:
+                builder.add_object(
+                    orjson.loads(
+                        orjson.dumps(
+                            record,
+                            default=lambda o: str(o),
+                            option=orjson.OPT_OMIT_MICROSECONDS,
+                        ).decode("utf-8")
+                    )
+                )
+            schema = builder.to_schema()
+            self.recursively_drop_required(schema)
+            if not schema:
+                raise Exception("Inferring schema failed")
+            self.logger.info("Inferred schema: %s", schema)
+        else:
+            raise Exception(f"Strategy {strategy} not supported")
+        return schema
 
     @staticmethod
     def deserialize_record(data):
         deserializer = boto3.dynamodb.types.TypeDeserializer()
-        return {k: deserializer.deserialize(v) for k,v in data.items()}
+        return {k: deserializer.deserialize(v) for k, v in data.items()}
+
+    def recursively_drop_required(self, schema: dict) -> None:
+        """Recursively drop the required property from a schema.
+
+        This is used to clean up genson generated schemas which are strict by default.
+        """
+        schema.pop("required", None)
+        if "properties" in schema:
+            for prop in schema["properties"]:
+                if schema["properties"][prop].get("type") == "object":
+                    self.recursively_drop_required(schema["properties"][prop])

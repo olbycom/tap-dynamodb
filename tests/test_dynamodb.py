@@ -76,3 +76,27 @@ def test_get_items_paginate():
     assert first_item.get("year") == 2023
     assert first_item.get("title") == "foo_0"
     assert first_item.get("info") == {"plot": "bar"}
+
+
+@mock_dynamodb
+def test_get_table_json_schema():
+    # PREP
+    moto_conn = boto3.resource("dynamodb")
+    table = create_table(moto_conn, "table")
+    for num in range(5):
+        table.put_item(
+            Item={"year": 2023, "title": f"foo_{num}", "info": {"plot": "bar"}}
+        )
+    # END PREP
+
+    db_obj = DynamoDB()
+    db_obj.authenticate({"aws_profile": "foo"})
+    schema = db_obj.get_table_json_schema("table")
+    assert schema == {
+        "type": "object",
+        "properties": {
+            "year": {"type": "string"},
+            "title": {"type": "string"},
+            "info": {"type": "object", "properties": {"plot": {"type": "string"}}},
+        },
+    }
