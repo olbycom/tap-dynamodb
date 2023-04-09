@@ -70,7 +70,7 @@ class DynamoDB:
                 if start_key:
                     scan_kwargs["ExclusiveStartKey"] = start_key
                 response = table.scan(**scan_kwargs)
-                yield response.get("Items", [])
+                yield [self.deserialize_record(item) for item in response.get("Items", [])]
                 start_key = response.get("LastEvaluatedKey", None)
                 done = start_key is None
         except ClientError as err:
@@ -80,3 +80,15 @@ class DynamoDB:
                 err.response["Error"]["Message"],
             )
             raise
+
+    def get_table_json_schema(
+            self,
+            table_name: str,
+            strategy: str = "infer"
+    ):
+        raise NotImplementedError
+
+    @staticmethod
+    def deserialize_record(data):
+        deserializer = boto3.dynamodb.types.TypeDeserializer()
+        return {k: deserializer.deserialize(v) for k,v in data.items()}

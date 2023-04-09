@@ -3,61 +3,30 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Iterable, List, Optional
 
-from singer_sdk import typing as th  # JSON Schema typing helpers
+from singer_sdk.streams import Stream
+from tap_dynamodb.dynamo import DynamoDB 
 
-from tap_dynamodb.client import DynamoDBStream
+class TableStream(Stream):
+    """Stream class for TableStream streams."""
 
-# TODO: Delete this is if not using json files for schema definition
-SCHEMAS_DIR = Path(__file__).parent / Path("./schemas")
-# TODO: - Override `UsersStream` and `GroupsStream` with your own stream definition.
-#       - Copy-paste as many times as needed to create multiple stream types.
+    def __init__(self, *args, **kwargs):
+        """Init TableStream."""
+        self.table_name = kwargs.get("table_name")
+        self.dynamodb_obj: DynamoDB = kwargs.get("dynamodb_obj")
+        super().__init__(*args, **kwargs)
 
+    def get_jsonschema_type(self):
+        return "string"
 
-class UsersStream(DynamoDBStream):
-    """Define custom stream."""
+    def get_records(self, context: dict | None) -> Iterable[dict]:
+        yield from self.dynamodb_obj.get_items_iter(self.table_name)
 
-    name = "users"
-    primary_keys = ["id"]
-    replication_key = None
-    # Optionally, you may also use `schema_filepath` in place of `schema`:
-    # schema_filepath = SCHEMAS_DIR / "users.json"
-    schema = th.PropertiesList(
-        th.Property("name", th.StringType),
-        th.Property(
-            "id",
-            th.StringType,
-            description="The user's system ID",
-        ),
-        th.Property(
-            "age",
-            th.IntegerType,
-            description="The user's age in years",
-        ),
-        th.Property(
-            "email",
-            th.StringType,
-            description="The user's email address",
-        ),
-        th.Property("street", th.StringType),
-        th.Property("city", th.StringType),
-        th.Property(
-            "state",
-            th.StringType,
-            description="State name in ISO 3166-2 format",
-        ),
-        th.Property("zip", th.StringType),
-    ).to_dict()
-
-
-class GroupsStream(DynamoDBStream):
-    """Define custom stream."""
-
-    name = "groups"
-    primary_keys = ["id"]
-    replication_key = "modified"
-    schema = th.PropertiesList(
-        th.Property("name", th.StringType),
-        th.Property("id", th.StringType),
-        th.Property("modified", th.DateTimeType),
-    ).to_dict()
+    @property
+    def schema(self) -> dict:
+        """Dynamically detect the json schema for the stream.
+        This is evaluated prior to any records being retrieved.
+        """
+        # TODO: SDC columns
+        return self.dynamodb_obj.get_table_json_schema(self.table_name)
