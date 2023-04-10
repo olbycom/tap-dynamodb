@@ -5,6 +5,7 @@ import boto3
 import genson
 import orjson
 from botocore.exceptions import ClientError
+from tap_dynamodb.exception import EmptyTableException
 
 
 class DynamoDB:
@@ -46,11 +47,14 @@ class DynamoDB:
             client = aws_session.resource("dynamodb")
         self._client = client
 
-    def list_tables(self, filters=None):
+    def list_tables(self, filters=[]):
         try:
             tables = []
             for table in self._client.tables.all():
-                tables.append(table)
+                if filters and table.name in filters:
+                    tables.append(table.name)
+                else:
+                    tables.append(table.name)
         except ClientError as err:
             self.logger.error(
                 "Couldn't list tables. Here's why: %s: %s",
@@ -94,6 +98,8 @@ class DynamoDB:
                 table_name, scan_kwargs={"Limit": 100, "ConsistentRead": True}
             )
         )[0]
+        if not sample_records:
+            raise EmptyTableException()
         if strategy == "infer":
             builder = genson.SchemaBuilder(schema_uri=None)
             for record in sample_records:
@@ -110,7 +116,8 @@ class DynamoDB:
             self.recursively_drop_required(schema)
             if not schema:
                 raise Exception("Inferring schema failed")
-            self.logger.info("Inferred schema: %s", schema)
+            else:
+                self.logger.info(f"Inferring schema successful for table: '{table_name}'")
         else:
             raise Exception(f"Strategy {strategy} not supported")
         return schema
