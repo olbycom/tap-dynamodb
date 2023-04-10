@@ -66,6 +66,16 @@ class DynamoDB:
         else:
             return tables
 
+    @staticmethod
+    def _coerce_types(record):
+        return orjson.loads(
+            orjson.dumps(
+                record,
+                default=lambda o: str(o),
+                option=orjson.OPT_OMIT_MICROSECONDS,
+            ).decode("utf-8")
+        )
+
     def get_items_iter(
         self, table_name: str, scan_kwargs: dict = {"ConsistentRead": True}
     ):
@@ -77,7 +87,9 @@ class DynamoDB:
                 if start_key:
                     scan_kwargs["ExclusiveStartKey"] = start_key
                 response = table.scan(**scan_kwargs)
-                yield response.get("Items", [])
+                yield [
+                    self._coerce_types(record) for record in response.get("Items", [])
+                ]
                 start_key = response.get("LastEvaluatedKey", None)
                 done = start_key is None
         except ClientError as err:
@@ -104,15 +116,7 @@ class DynamoDB:
         if strategy == "infer":
             builder = genson.SchemaBuilder(schema_uri=None)
             for record in sample_records:
-                builder.add_object(
-                    orjson.loads(
-                        orjson.dumps(
-                            record,
-                            default=lambda o: str(o),
-                            option=orjson.OPT_OMIT_MICROSECONDS,
-                        ).decode("utf-8")
-                    )
-                )
+                builder.add_object(self._coerce_types(record))
             schema = builder.to_schema()
             self.recursively_drop_required(schema)
             if not schema:
