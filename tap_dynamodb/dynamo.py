@@ -1,12 +1,10 @@
 import logging
 import os
-from typing import List
 
 import boto3
 import genson
 import orjson
 from botocore.exceptions import ClientError
-from singer_sdk import typing as th  # JSON Schema typing helpers
 
 
 class DynamoDB:
@@ -91,8 +89,6 @@ class DynamoDB:
         return [key.get("AttributeName") for key in dynamo_schema]
 
     def get_table_json_schema(self, table_name: str, strategy: str = "infer"):
-        properties: List[th.Property] = []
-
         sample_records = list(
             self.get_items_iter(
                 table_name, scan_kwargs={"Limit": 100, "ConsistentRead": True}
@@ -128,6 +124,9 @@ class DynamoDB:
         """Recursively drop the required property from a schema.
 
         This is used to clean up genson generated schemas which are strict by default.
+
+        Args:
+            schema: The json schema.
         """
         schema.pop("required", None)
         if "properties" in schema:

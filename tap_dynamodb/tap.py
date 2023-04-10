@@ -18,7 +18,7 @@ class TapDynamoDB(Tap):
     # TODO: Update this section with the actual config values you expect:
     config_jsonschema = th.PropertiesList().to_dict()
 
-    def discover_streams(self) -> list[streams.DynamoDBStream]:
+    def discover_streams(self) -> list[streams.TableStream]:
         """Return a list of discovered streams.
 
         Returns:
