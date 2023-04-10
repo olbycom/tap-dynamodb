@@ -5,6 +5,7 @@ import boto3
 import genson
 import orjson
 from botocore.exceptions import ClientError
+
 from tap_dynamodb.exception import EmptyTableException
 
 
@@ -117,7 +118,9 @@ class DynamoDB:
             if not schema:
                 raise Exception("Inferring schema failed")
             else:
-                self.logger.info(f"Inferring schema successful for table: '{table_name}'")
+                self.logger.info(
+                    f"Inferring schema successful for table: '{table_name}'"
+                )
         else:
             raise Exception(f"Strategy {strategy} not supported")
         return schema
