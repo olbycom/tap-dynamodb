@@ -31,8 +31,8 @@ def test_list_tables():
     db_obj._client = moto_conn
     tables = db_obj.list_tables()
     assert len(tables) == 105
-    assert tables[0].table_name == "table_1"
-    assert tables[-1].table_name == "table_105"
+    assert tables[0] == "table_1"
+    assert tables[-1] == "table_105"
 
 
 @mock_dynamodb
