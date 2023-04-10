@@ -6,7 +6,9 @@ from pathlib import Path
 from typing import Iterable, List, Optional
 
 from singer_sdk.streams import Stream
-from tap_dynamodb.dynamo import DynamoDB 
+
+from tap_dynamodb.dynamo import DynamoDB
+
 
 class TableStream(Stream):
     """Stream class for TableStream streams."""
