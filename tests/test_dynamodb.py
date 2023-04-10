@@ -28,7 +28,7 @@ def test_list_tables():
     # END PREP
 
     db_obj = DynamoDB()
-    db_obj.authenticate({"aws_profile": "foo"})
+    db_obj._client = moto_conn
     tables = db_obj.list_tables()
     assert len(tables) == 105
     assert tables[0].table_name == "table_1"
@@ -44,7 +44,7 @@ def test_get_items():
     # END PREP
 
     db_obj = DynamoDB()
-    db_obj.authenticate({"aws_profile": "foo"})
+    db_obj._client = moto_conn
     records = list(db_obj.get_items_iter("table"))[0]
     assert len(records) == 1
     assert records[0].get("year") == 2023
@@ -64,7 +64,7 @@ def test_get_items_paginate():
     # END PREP
 
     db_obj = DynamoDB()
-    db_obj.authenticate({"aws_profile": "foo"})
+    db_obj._client = moto_conn
     iterations = 0
     records = []
     for i in db_obj.get_items_iter("table", {"Limit": 1, "ConsistentRead": True}):
@@ -90,7 +90,7 @@ def test_get_table_json_schema():
     # END PREP
 
     db_obj = DynamoDB()
-    db_obj.authenticate({"aws_profile": "foo"})
+    db_obj._client = moto_conn
     schema = db_obj.get_table_json_schema("table")
     assert schema == {
         "type": "object",
