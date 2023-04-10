@@ -22,7 +22,7 @@ def create_table(moto_conn, name):
 @mock_dynamodb
 def test_list_tables():
     # PREP
-    moto_conn = boto3.resource("dynamodb")
+    moto_conn = boto3.resource("dynamodb", region_name="us-west-2")
     for num in range(1, 106):
         create_table(moto_conn, f"table_{num}")
     # END PREP
@@ -38,7 +38,7 @@ def test_list_tables():
 @mock_dynamodb
 def test_get_items():
     # PREP
-    moto_conn = boto3.resource("dynamodb")
+    moto_conn = boto3.resource("dynamodb", region_name="us-west-2")
     table = create_table(moto_conn, "table")
     table.put_item(Item={"year": 2023, "title": "foo", "info": {"plot": "bar"}})
     # END PREP
@@ -55,7 +55,7 @@ def test_get_items():
 @mock_dynamodb
 def test_get_items_paginate():
     # PREP
-    moto_conn = boto3.resource("dynamodb")
+    moto_conn = boto3.resource("dynamodb", region_name="us-west-2")
     table = create_table(moto_conn, "table")
     for num in range(5):
         table.put_item(
@@ -81,7 +81,7 @@ def test_get_items_paginate():
 @mock_dynamodb
 def test_get_table_json_schema():
     # PREP
-    moto_conn = boto3.resource("dynamodb")
+    moto_conn = boto3.resource("dynamodb", region_name="us-west-2")
     table = create_table(moto_conn, "table")
     for num in range(5):
         table.put_item(
