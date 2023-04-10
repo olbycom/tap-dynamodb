@@ -6,6 +6,8 @@ import genson
 import orjson
 from botocore.exceptions import ClientError
 
+from tap_dynamodb.exception import EmptyTableException
+
 
 class DynamoDB:
     def __init__(self):
@@ -46,11 +48,14 @@ class DynamoDB:
             client = aws_session.resource("dynamodb")
         self._client = client
 
-    def list_tables(self, filters=None):
+    def list_tables(self, filters=[]):
         try:
             tables = []
             for table in self._client.tables.all():
-                tables.append(table)
+                if filters and table.name in filters:
+                    tables.append(table.name)
+                else:
+                    tables.append(table.name)
         except ClientError as err:
             self.logger.error(
                 "Couldn't list tables. Here's why: %s: %s",
@@ -60,6 +65,16 @@ class DynamoDB:
             raise
         else:
             return tables
+
+    @staticmethod
+    def _coerce_types(record):
+        return orjson.loads(
+            orjson.dumps(
+                record,
+                default=lambda o: str(o),
+                option=orjson.OPT_OMIT_MICROSECONDS,
+            ).decode("utf-8")
+        )
 
     def get_items_iter(
         self, table_name: str, scan_kwargs: dict = {"ConsistentRead": True}
@@ -72,7 +87,9 @@ class DynamoDB:
                 if start_key:
                     scan_kwargs["ExclusiveStartKey"] = start_key
                 response = table.scan(**scan_kwargs)
-                yield response.get("Items", [])
+                yield [
+                    self._coerce_types(record) for record in response.get("Items", [])
+                ]
                 start_key = response.get("LastEvaluatedKey", None)
                 done = start_key is None
         except ClientError as err:
@@ -94,23 +111,20 @@ class DynamoDB:
                 table_name, scan_kwargs={"Limit": 100, "ConsistentRead": True}
             )
         )[0]
+        if not sample_records:
+            raise EmptyTableException()
         if strategy == "infer":
             builder = genson.SchemaBuilder(schema_uri=None)
             for record in sample_records:
-                builder.add_object(
-                    orjson.loads(
-                        orjson.dumps(
-                            record,
-                            default=lambda o: str(o),
-                            option=orjson.OPT_OMIT_MICROSECONDS,
-                        ).decode("utf-8")
-                    )
-                )
+                builder.add_object(self._coerce_types(record))
             schema = builder.to_schema()
             self.recursively_drop_required(schema)
             if not schema:
                 raise Exception("Inferring schema failed")
-            self.logger.info("Inferred schema: %s", schema)
+            else:
+                self.logger.info(
+                    f"Inferring schema successful for table: '{table_name}'"
+                )
         else:
             raise Exception(f"Strategy {strategy} not supported")
         return schema

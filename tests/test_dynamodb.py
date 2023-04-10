@@ -31,8 +31,8 @@ def test_list_tables():
     db_obj._client = moto_conn
     tables = db_obj.list_tables()
     assert len(tables) == 105
-    assert tables[0].table_name == "table_1"
-    assert tables[-1].table_name == "table_105"
+    assert tables[0] == "table_1"
+    assert tables[-1] == "table_105"
 
 
 @mock_dynamodb
@@ -47,7 +47,8 @@ def test_get_items():
     db_obj._client = moto_conn
     records = list(db_obj.get_items_iter("table"))[0]
     assert len(records) == 1
-    assert records[0].get("year") == 2023
+    # Type coercion
+    assert records[0].get("year") == "2023"
     assert records[0].get("title") == "foo"
     assert records[0].get("info") == {"plot": "bar"}
 
@@ -73,7 +74,7 @@ def test_get_items_paginate():
     assert len(records) == 5
     assert iterations == 5
     first_item = records[0]
-    assert first_item.get("year") == 2023
+    assert first_item.get("year") == "2023"
     assert first_item.get("title") == "foo_0"
     assert first_item.get("info") == {"plot": "bar"}
 
@@ -99,4 +100,17 @@ def test_get_table_json_schema():
             "title": {"type": "string"},
             "info": {"type": "object", "properties": {"plot": {"type": "string"}}},
         },
+    }
+
+
+def test_coerce_types():
+    import decimal
+    db_obj = DynamoDB()
+    coerced = db_obj._coerce_types(
+        {
+            "foo": decimal.Decimal("1.23")
+        }
+    )
+    assert coerced == {
+        "foo": "1.23"
     }

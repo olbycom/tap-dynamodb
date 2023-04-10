@@ -23,15 +23,18 @@ class TableStream(Stream):
                 dynamodb_obj (DynamoDB): Instance of the DynamoDB client.
 
         """
-        self.table_name = kwargs.get("table_name")
-        self.dynamodb_obj: DynamoDB = kwargs.get("dynamodb_obj")
+        self.table_name = kwargs.get("name")
+        self.dynamodb_obj: DynamoDB = kwargs.pop("dynamodb_obj")
+        self._schema = None
         super().__init__(*args, **kwargs)
 
     def get_jsonschema_type(self):
         return "string"
 
     def get_records(self, context: dict | None) -> Iterable[dict]:
-        yield from self.dynamodb_obj.get_items_iter(self.table_name)
+        for batch in self.dynamodb_obj.get_items_iter(self.table_name):
+            for record in batch:
+                yield record
 
     @property
     def schema(self) -> dict:
@@ -42,4 +45,6 @@ class TableStream(Stream):
             dict
         """
         # TODO: SDC columns
-        return self.dynamodb_obj.get_table_json_schema(self.table_name)
+        if not self._schema:
+            self._schema = self.dynamodb_obj.get_table_json_schema(self.table_name)
+        return self._schema
