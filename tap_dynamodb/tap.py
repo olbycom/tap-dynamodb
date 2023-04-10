@@ -85,15 +85,6 @@ class TapDynamoDB(Tap):
                 self.logger.warning(f"Skipping '{table_name}'. No records found.")
         return discovered_streams
 
-        return [
-            streams.TableStream(
-                tap=self,
-                name=table_name,
-                dynamodb_obj=obj,
-            )
-            for table_name in obj.list_tables(self.config.get("tables"))
-        ]
-
 
 if __name__ == "__main__":
     TapDynamoDB.cli()
