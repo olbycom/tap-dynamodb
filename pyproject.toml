@@ -32,6 +32,7 @@ isort = "^5.11.5"
 singer-sdk = { version="^0.23.0", extras = ["testing"] }
 moto = "^4.1.6"
 coverage = "^7.2.3"
+pydocstyle = "^6.3.0"
 
 [tool.poetry.extras]
 s3 = ["fs-s3fs"]
