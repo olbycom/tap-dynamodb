@@ -109,4 +109,5 @@ class AWSBotoAuthenticator:
             aws_access_key_id=response["Credentials"]["AccessKeyId"],
             aws_secret_access_key=response["Credentials"]["SecretAccessKey"],
             aws_session_token=response["Credentials"]["SessionToken"],
+            region_name=self.aws_default_region,
         )
