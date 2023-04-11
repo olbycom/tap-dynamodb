@@ -114,3 +114,4 @@ def test_coerce_types():
     assert coerced == {
         "foo": "1.23"
     }
+

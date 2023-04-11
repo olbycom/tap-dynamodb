@@ -16,7 +16,6 @@ class TapDynamoDB(Tap):
 
     name = "tap-dynamodb"
 
-    # TODO: Update this section with the actual config values you expect:
     config_jsonschema = th.PropertiesList(
         th.Property(
             "aws_access_key_id",
@@ -48,14 +47,20 @@ class TapDynamoDB(Tap):
             ),
         ),
         th.Property(
+            "aws_default_region",
+            th.StringType,
+            description="The default AWS region name (e.g. us-east-1) ",
+        ),
+        th.Property(
             "aws_endpoint_url",
             th.StringType,
             description="The complete URL to use for the constructed client.",
         ),
         th.Property(
-            "aws_region_name",
-            th.StringType,
-            description="The AWS region name (e.g. us-east-1) ",
+            "use_aws_env_vars",
+            th.BooleanType,
+            default=False,
+            description="Whether to retrieve aws credentials from environment variables.",
         ),
         th.Property(
             "tables",
@@ -70,8 +75,7 @@ class TapDynamoDB(Tap):
         Returns:
             A list of discovered streams.
         """
-        obj = DynamoDB()
-        obj.authenticate(self.config)
+        obj = DynamoDB(self.config)
         discovered_streams = []
         for table_name in obj.list_tables(self.config.get("tables")):
             try:
