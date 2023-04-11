@@ -32,6 +32,7 @@ class AWSAuth:
             self.aws_access_key_id
             and self.aws_secret_access_key
             and self.aws_session_token
+            and self.aws_default_region
         ):
             session = boto3.Session(
                 aws_access_key_id=self.aws_access_key_id,
@@ -39,7 +40,11 @@ class AWSAuth:
                 aws_session_token=self.aws_session_token,
                 region_name=self.aws_default_region,
             )
-        elif self.aws_access_key_id and self.aws_secret_access_key:
+        elif (
+            self.aws_access_key_id
+            and self.aws_secret_access_key
+            and self.aws_default_region
+        ):
             session = boto3.Session(
                 aws_access_key_id=self.aws_access_key_id,
                 aws_secret_access_key=self.aws_secret_access_key,
