@@ -2,11 +2,11 @@ import genson
 import orjson
 from botocore.exceptions import ClientError
 
-from tap_dynamodb.aws_base import AWSBase
+from tap_dynamodb.aws_authenticators import AWSBotoAuthenticator
 from tap_dynamodb.exception import EmptyTableException
 
 
-class DynamoDB(AWSBase):
+class DynamoDB(AWSBotoAuthenticator):
     def __init__(self, config):
         super().__init__(config, "dynamodb")
 

@@ -4,8 +4,13 @@ import os
 import boto3
 
 
-class AWSAuth:
-    def __init__(self, config):
+class AWSBotoAuthenticator:
+    def __init__(self, config, service_name):
+        self._service_name = service_name
+        self._config = config
+        self._client = None
+        self._resource = None
+        self.logger = logging.getLogger(__name__)
         # config for use environment variables
         if config.get("use_aws_env_vars"):
             self.aws_access_key_id = os.environ.get("AWS_ACCESS_KEY_ID")
@@ -23,7 +28,23 @@ class AWSAuth:
         self.aws_endpoint_url = config.get("aws_endpoint_url")
         self.aws_assume_role_arn = config.get("aws_assume_role_arn")
 
-        self.logger = logging.getLogger(__name__)
+    @property
+    def client(self):
+        if self._client:
+            return self._client
+        else:
+            session = self.get_session()
+            self._client = self.get_client(session, self._service_name)
+            return self._client
+
+    @property
+    def resource(self):
+        if self._resource:
+            return self._resource
+        else:
+            session = self.get_session()
+            self._resource = self.get_resource(session, self._service_name)
+            return self._resource
 
     def get_session(self):
         session = None
