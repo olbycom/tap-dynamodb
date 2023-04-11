@@ -10,13 +10,11 @@ class DynamoDB(AWSBase):
     def __init__(self, config):
         super().__init__(config, "dynamodb")
 
-    def list_tables(self, filters=[]):
+    def list_tables(self, include=None):
         try:
             tables = []
             for table in self.resource.tables.all():
-                if filters and table.name in filters:
-                    tables.append(table.name)
-                else:
+                if include is None or table.name in include:
                     tables.append(table.name)
         except ClientError as err:
             self.logger.error(

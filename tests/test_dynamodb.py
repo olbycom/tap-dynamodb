@@ -38,6 +38,21 @@ def test_list_tables():
     assert tables[0] == "table_1"
     assert tables[-1] == "table_105"
 
+@mock_dynamodb
+def test_list_tables_filtered():
+    # PREP
+    moto_conn = boto3.resource("dynamodb", region_name="us-west-2")
+    create_table(moto_conn, "table_to_replicate")
+    create_table(moto_conn, "table_to_skip")
+    # END PREP
+
+    db_obj = DynamoDB(SAMPLE_CONFIG)
+    tables = db_obj.list_tables(["table_to_replicate"])
+    assert len(tables) == 1
+    assert tables[0] == "table_to_replicate"
+    tables = db_obj.list_tables()
+    assert len(tables) == 2
+    assert tables == ["table_to_replicate", "table_to_skip"]
 
 @mock_dynamodb
 def test_get_items():
