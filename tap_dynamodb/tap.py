@@ -83,7 +83,7 @@ class TapDynamoDB(Tap):
         """
         obj = DynamoDB(self.config)
         discovered_streams = []
-        for table_name in obj.list_tables(self.config.get("tables")):
+        for table_name in self.config.get("tables") or obj.list_tables():
             try:
                 stream = streams.TableStream(
                     tap=self,

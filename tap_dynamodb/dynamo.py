@@ -54,7 +54,8 @@ class DynamoDB(AWSBotoAuthenticator):
                 done = start_key is None
         except ClientError as err:
             self.logger.error(
-                "Couldn't scan for movies. Here's why: %s: %s",
+                "Couldn't scan for %s. Here's why: %s: %s",
+                table_name,
                 err.response["Error"]["Code"],
                 err.response["Error"]["Message"],
             )
