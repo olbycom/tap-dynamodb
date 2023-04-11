@@ -85,6 +85,10 @@ class DynamoDB(AWSBotoAuthenticator):
             raise Exception(f"Strategy {strategy} not supported")
         return schema
 
+    def get_table_key_properties(self, table_name):
+        key_schema = self.resource.Table(table_name).key_schema
+        return [key.get("AttributeName") for key in key_schema]
+
     def recursively_drop_required(self, schema: dict) -> None:
         """Recursively drop the required property from a schema.
 
