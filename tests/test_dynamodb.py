@@ -53,6 +53,8 @@ def test_list_tables_filtered():
     tables = db_obj.list_tables()
     assert len(tables) == 2
     assert tables == ["table_to_replicate", "table_to_skip"]
+    tables = db_obj.list_tables([])
+    assert len(tables) == 0
 
 @mock_dynamodb
 def test_get_items():
