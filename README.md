@@ -1,49 +1,37 @@
-# tap-dynamodb
+# `tap-dynamodb`
 
-`tap-dynamodb` is a Singer tap for DynamoDB.
+DynamoDB tap class.
 
-Built with the [Meltano Tap SDK](https://sdk.meltano.com) for Singer Taps.
+Built with the [Meltano Singer SDK](https://sdk.meltano.com).
 
-<!--
+## Capabilities
 
-Developer TODO: Update the below as needed to correctly describe the install procedure. For instance, if you do not have a PyPi repo, or if you want users to directly install from your git repo, you can modify this step as appropriate.
+* `catalog`
+* `state`
+* `discover`
+* `about`
+* `stream-maps`
+* `schema-flattening`
 
-## Installation
+## Settings
 
-Install from PyPi:
+| Setting              | Required | Default | Description |
+|:---------------------|:--------:|:-------:|:------------|
+| aws_access_key_id    | False    | None    | The access key for your AWS account. |
+| aws_secret_access_key| False    | None    | The secret key for your AWS account. |
+| aws_session_token    | False    | None    | The session key for your AWS account. This is only needed when you are using temporary credentials. |
+| aws_profile          | False    | None    | The AWS credentials profile name to use. The profile must be configured and accessible. |
+| aws_default_region   | False    | None    | The default AWS region name (e.g. us-east-1)  |
+| aws_endpoint_url     | False    | None    | The complete URL to use for the constructed client. |
+| aws_assume_role_arn  | False    | None    | The role ARN to assume. |
+| use_aws_env_vars     | False    |       0 | Whether to retrieve aws credentials from environment variables. |
+| tables               | False    | None    | An array of table names to extract from. |
+| stream_maps          | False    | None    | Config object for stream maps capability. For more information check out [Stream Maps](https://sdk.meltano.com/en/latest/stream_maps.html). |
+| stream_map_config    | False    | None    | User-defined config values to be used within map expressions. |
+| flattening_enabled   | False    | None    | 'True' to enable schema flattening and automatically expand nested properties. |
+| flattening_max_depth | False    | None    | The max depth to flatten schemas. |
 
-```bash
-pipx install tap-dynamodb
-```
-
-Install from GitHub:
-
-```bash
-pipx install git+https://github.com/ORG_NAME/tap-dynamodb.git@main
-```
-
--->
-
-## Configuration
-
-### Accepted Config Options
-
-<!--
-Developer TODO: Provide a list of config options accepted by the tap.
-
-This section can be created by copy-pasting the CLI output from:
-
-```
-tap-dynamodb --about --format=markdown
-```
--->
-
-A full list of supported settings and capabilities for this
-tap is available by running:
-
-```bash
-tap-dynamodb --about
-```
+A full list of supported settings and capabilities is available by running: `tap-dynamodb --about`
 
 ### Configure using environment variables
 
@@ -52,10 +40,6 @@ This Singer tap will automatically import any environment variables within the w
 environment variable is set either in the terminal context or in the `.env` file.
 
 ### Source Authentication and Authorization
-
-<!--
-Developer TODO: If your tap requires special access on the source system, or any special authentication requirements, provide those here.
--->
 
 ## Usage
 
@@ -107,12 +91,6 @@ poetry run tap-dynamodb --help
 
 _**Note:** This tap will work in any Singer environment and does not require Meltano.
 Examples here are for convenience and to streamline end-to-end orchestration scenarios._
-
-<!--
-Developer TODO:
-Your project comes with a custom `meltano.yml` project file already created. Open the `meltano.yml` and follow any "TODO" items listed in
-the file.
--->
 
 Next, install Meltano (if you haven't already) and any needed plugins:
 
