@@ -57,6 +57,11 @@ class TapDynamoDB(Tap):
             description="The complete URL to use for the constructed client.",
         ),
         th.Property(
+            "aws_assume_role_arn",
+            th.StringType,
+            description="The role ARN to assume.",
+        ),
+        th.Property(
             "use_aws_env_vars",
             th.BooleanType,
             default=False,
