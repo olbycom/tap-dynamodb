@@ -6,8 +6,9 @@ from tap_dynamodb.dynamo import DynamoDB
 SAMPLE_CONFIG = {
     "aws_access_key_id": "foo",
     "aws_secret_access_key": "bar",
-    "aws_default_region": "us-west-2"
+    "aws_default_region": "us-west-2",
 }
+
 
 def create_table(moto_conn, name):
     return moto_conn.create_table(
@@ -38,6 +39,7 @@ def test_list_tables():
     assert tables[0] == "table_1"
     assert tables[-1] == "table_105"
 
+
 @mock_dynamodb
 def test_list_tables_filtered():
     # PREP
@@ -55,6 +57,7 @@ def test_list_tables_filtered():
     assert tables == ["table_to_replicate", "table_to_skip"]
     tables = db_obj.list_tables([])
     assert len(tables) == 0
+
 
 @mock_dynamodb
 def test_get_items():
@@ -121,15 +124,24 @@ def test_get_table_json_schema():
     }
 
 
+@mock_dynamodb
+def test_get_table_key_properties():
+    # PREP
+    moto_conn = boto3.resource("dynamodb", region_name="us-west-2")
+    table = create_table(moto_conn, "table")
+    for num in range(5):
+        table.put_item(
+            Item={"year": 2023, "title": f"foo_{num}", "info": {"plot": "bar"}}
+        )
+    # END PREP
+
+    db_obj = DynamoDB(SAMPLE_CONFIG)
+    assert ["year", "title"] == db_obj.get_table_key_properties("table")
+
+
 def test_coerce_types():
     import decimal
-    db_obj = DynamoDB(SAMPLE_CONFIG)
-    coerced = db_obj._coerce_types(
-        {
-            "foo": decimal.Decimal("1.23")
-        }
-    )
-    assert coerced == {
-        "foo": "1.23"
-    }
 
+    db_obj = DynamoDB(SAMPLE_CONFIG)
+    coerced = db_obj._coerce_types({"foo": decimal.Decimal("1.23")})
+    assert coerced == {"foo": "1.23"}

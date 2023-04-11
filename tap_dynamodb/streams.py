@@ -47,4 +47,7 @@ class TableStream(Stream):
         # TODO: SDC columns
         if not self._schema:
             self._schema = self.dynamodb_obj.get_table_json_schema(self.table_name)
+            self.primary_keys = self.dynamodb_obj.get_table_key_properties(
+                self.table_name
+            )
         return self._schema
