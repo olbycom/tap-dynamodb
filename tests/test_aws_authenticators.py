@@ -1,7 +1,9 @@
+from unittest.mock import patch
+
 import pytest
 from moto import mock_dynamodb, mock_sts
+
 from tap_dynamodb.aws_authenticators import AWSBotoAuthenticator
-from unittest.mock import patch
 
 
 @patch(
