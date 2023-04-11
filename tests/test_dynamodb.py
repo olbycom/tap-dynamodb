@@ -125,7 +125,7 @@ def test_get_table_json_schema():
 
 
 @mock_dynamodb
-def test_get_table_json_schema():
+def test_get_table_key_properties():
     # PREP
     moto_conn = boto3.resource("dynamodb", region_name="us-west-2")
     table = create_table(moto_conn, "table")

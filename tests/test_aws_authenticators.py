@@ -86,7 +86,7 @@ def test_get_session_assume_role():
         },
         "dynamodb",
     )
-    session = auth.get_session()
+    auth.get_session()
 
 
 @mock_dynamodb
@@ -100,7 +100,7 @@ def test_get_client():
         "dynamodb",
     )
     session = auth.get_session()
-    client = auth.get_client(session, "dynamodb")
+    auth.get_client(session, "dynamodb")
 
 
 @mock_dynamodb
@@ -114,4 +114,4 @@ def test_get_resource():
         "dynamodb",
     )
     session = auth.get_session()
-    resource = auth.get_resource(session, "dynamodb")
+    auth.get_resource(session, "dynamodb")
