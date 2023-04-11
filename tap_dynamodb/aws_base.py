@@ -18,7 +18,7 @@ class AWSBase:
         else:
             auth_obj = AWSAuth(self._config)
             session = auth_obj.get_session()
-            self._client = auth_obj.get_resource(session, self._service_name)
+            self._client = auth_obj.get_client(session, self._service_name)
             return self._client
 
     @property
@@ -28,5 +28,5 @@ class AWSBase:
         else:
             auth_obj = AWSAuth(self._config)
             session = auth_obj.get_session()
-            self._resource = auth_obj.get_client(session, self._service_name)
+            self._resource = auth_obj.get_resource(session, self._service_name)
             return self._resource
