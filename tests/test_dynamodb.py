@@ -3,6 +3,11 @@ from moto import mock_dynamodb
 
 from tap_dynamodb.dynamo import DynamoDB
 
+SAMPLE_CONFIG = {
+    "aws_access_key_id": "foo",
+    "aws_secret_access_key": "bar",
+    "aws_default_region": "baz"
+}
 
 def create_table(moto_conn, name):
     return moto_conn.create_table(
@@ -27,8 +32,8 @@ def test_list_tables():
         create_table(moto_conn, f"table_{num}")
     # END PREP
 
-    db_obj = DynamoDB()
-    db_obj._client = moto_conn
+    db_obj = DynamoDB(SAMPLE_CONFIG)
+    db_obj._resource = moto_conn
     tables = db_obj.list_tables()
     assert len(tables) == 105
     assert tables[0] == "table_1"
@@ -43,8 +48,8 @@ def test_get_items():
     table.put_item(Item={"year": 2023, "title": "foo", "info": {"plot": "bar"}})
     # END PREP
 
-    db_obj = DynamoDB()
-    db_obj._client = moto_conn
+    db_obj = DynamoDB(SAMPLE_CONFIG)
+    db_obj._resource = moto_conn
     records = list(db_obj.get_items_iter("table"))[0]
     assert len(records) == 1
     # Type coercion
@@ -64,8 +69,8 @@ def test_get_items_paginate():
         )
     # END PREP
 
-    db_obj = DynamoDB()
-    db_obj._client = moto_conn
+    db_obj = DynamoDB(SAMPLE_CONFIG)
+    db_obj._resource = moto_conn
     iterations = 0
     records = []
     for i in db_obj.get_items_iter("table", {"Limit": 1, "ConsistentRead": True}):
@@ -90,8 +95,8 @@ def test_get_table_json_schema():
         )
     # END PREP
 
-    db_obj = DynamoDB()
-    db_obj._client = moto_conn
+    db_obj = DynamoDB(SAMPLE_CONFIG)
+    db_obj._resource = moto_conn
     schema = db_obj.get_table_json_schema("table")
     assert schema == {
         "type": "object",
@@ -105,7 +110,7 @@ def test_get_table_json_schema():
 
 def test_coerce_types():
     import decimal
-    db_obj = DynamoDB()
+    db_obj = DynamoDB(SAMPLE_CONFIG)
     coerced = db_obj._coerce_types(
         {
             "foo": decimal.Decimal("1.23")

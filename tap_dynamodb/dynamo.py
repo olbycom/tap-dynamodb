@@ -1,4 +1,3 @@
-import boto3
 import genson
 import orjson
 from botocore.exceptions import ClientError
@@ -63,11 +62,6 @@ class DynamoDB(AWSBase):
             )
             raise
 
-    def get_key_properties(self, table_name):
-        # TODO: use this for required
-        dynamo_schema = self.resource.Table(table_name).key_schema
-        return [key.get("AttributeName") for key in dynamo_schema]
-
     def get_table_json_schema(self, table_name: str, strategy: str = "infer"):
         sample_records = list(
             self.get_items_iter(
@@ -91,11 +85,6 @@ class DynamoDB(AWSBase):
         else:
             raise Exception(f"Strategy {strategy} not supported")
         return schema
-
-    @staticmethod
-    def deserialize_record(data):
-        deserializer = boto3.dynamodb.types.TypeDeserializer()
-        return {k: deserializer.deserialize(v) for k, v in data.items()}
 
     def recursively_drop_required(self, schema: dict) -> None:
         """Recursively drop the required property from a schema.

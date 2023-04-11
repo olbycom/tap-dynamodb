@@ -21,10 +21,6 @@ class AWSAuth:
             self.aws_default_region = config.get("aws_default_region")
 
         self.aws_endpoint_url = config.get("aws_endpoint_url")
-        # Should these be excluded and an empty boto call made, it then risks unknown auth config errors
-        # I sort of like the idea of forcing something to be set
-        # self.aws_config_file = config.get("aws_config_file") or os.environ.get("AWS_CONFIG_FILE")
-        # self.aws_shared_credentials_file = config.get("aws_shared_credentials_file") or os.environ.get("AWS_SHARED_CREDENTIALS_FILE")
         self.aws_assume_role_arn = config.get("aws_assume_role_arn")
 
         self.logger = logging.getLogger(__name__)
@@ -54,10 +50,6 @@ class AWSAuth:
             self.logger.info("Using installed shared credentials file.")
         else:
             raise Exception("Explicit AWS auth not provided")
-            # self.logger.warning(
-            #     "Explicit AWS auth not provided, using implicit config file or shared credentials file."
-            # )
-            # session = boto3.Session()
 
         if self.aws_assume_role_arn:
             if not session:

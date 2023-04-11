@@ -60,7 +60,9 @@ class TapDynamoDB(Tap):
             "use_aws_env_vars",
             th.BooleanType,
             default=False,
-            description="Whether to retrieve aws credentials from environment variables.",
+            description=(
+                "Whether to retrieve aws credentials from environment variables."
+            ),
         ),
         th.Property(
             "tables",
