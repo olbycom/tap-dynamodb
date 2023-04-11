@@ -5,7 +5,6 @@ from __future__ import annotations
 from singer_sdk import Tap
 from singer_sdk import typing as th  # JSON schema typing helpers
 
-# TODO: Import your custom stream types here:
 from tap_dynamodb import streams
 from tap_dynamodb.dynamo import DynamoDB
 from tap_dynamodb.exception import EmptyTableException

@@ -27,7 +27,6 @@ class AWSAuth:
 
     def get_session(self):
         session = None
-        # TODO: require region
         if (
             self.aws_access_key_id
             and self.aws_secret_access_key
