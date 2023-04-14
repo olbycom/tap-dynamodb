@@ -29,7 +29,10 @@ def test_get_session_base(patch):
     assert session == "mock_session"
 
 
-@patch("tap_dynamodb.connectors.aws_boto_connector.boto3.Session", return_value="mock_session")
+@patch(
+    "tap_dynamodb.connectors.aws_boto_connector.boto3.Session",
+    return_value="mock_session",
+)
 @mock_dynamodb
 def test_get_session_w_token(patch):
     auth = AWSBotoConnector(
@@ -51,7 +54,10 @@ def test_get_session_w_token(patch):
     assert session == "mock_session"
 
 
-@patch("tap_dynamodb.connectors.aws_boto_connector.boto3.Session", return_value="mock_session")
+@patch(
+    "tap_dynamodb.connectors.aws_boto_connector.boto3.Session",
+    return_value="mock_session",
+)
 @mock_dynamodb
 def test_get_session_w_profile(patch):
     auth = AWSBotoConnector(

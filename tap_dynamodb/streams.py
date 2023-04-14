@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Iterable
 
-
 from singer_sdk.plugin_base import PluginBase as TapBaseClass
 from singer_sdk.streams import Stream
 

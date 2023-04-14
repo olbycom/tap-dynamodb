@@ -14,14 +14,11 @@ class DynamoDbConnector(AWSBotoConnector):
         config: dict,
     ) -> None:
         """Initialize the connector.
-        
+
         Args:
             config: The connector configuration.
         """
-        super().__init__(
-            config,
-            "dynamodb"
-        )
+        super().__init__(config, "dynamodb")
 
     @staticmethod
     def _coerce_types(record):
@@ -62,7 +59,6 @@ class DynamoDbConnector(AWSBotoConnector):
             raise
         else:
             return tables
-
 
     def get_items_iter(
         self, table_name: str, scan_kwargs: dict = {"ConsistentRead": True}
@@ -116,4 +112,3 @@ class DynamoDbConnector(AWSBotoConnector):
     def get_table_key_properties(self, table_name):
         key_schema = self.resource.Table(table_name).key_schema
         return [key.get("AttributeName") for key in key_schema]
-
