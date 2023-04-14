@@ -1,5 +1,6 @@
 import logging
 import os
+from typing import Union
 
 from singer_sdk import typing as th  # JSON schema typing helpers
 
@@ -7,7 +8,8 @@ try:
     import boto3
 except ImportError:
     raise Exception(
-        "boto3 is required for this authenticator. Please install it with `poetry add boto3`."
+        "boto3 is required for this authenticator. "
+        "Please install it with `poetry add boto3`."
     )
 
 AWS_AUTH_CONFIG = th.PropertiesList(
@@ -145,8 +147,12 @@ class AWSBotoConnector:
 
     def get_session(self) -> boto3.session:
         """Return the boto3 session.
+
         Returns:
             boto3.session: The boto3 session.
+
+        Raises:
+            Exception: If no credentials are provided.
         """
         session = None
         if (
@@ -183,7 +189,9 @@ class AWSBotoConnector:
             session = self._assume_role(session, self.aws_assume_role_arn)
         return session
 
-    def _factory(self, aws_obj: object, service_name: str) -> object:
+    def _factory(
+        self, aws_obj, service_name: str
+    ) -> Union[boto3.resource, boto3.client]:
         if self.aws_endpoint_url:
             return aws_obj(
                 service_name,
@@ -194,10 +202,12 @@ class AWSBotoConnector:
                 service_name,
             )
 
-    def get_resource(
-        self, session: boto3.session.Session, service_name: str
-    ) -> boto3.resource:
+    def get_resource(self, session: boto3.session, service_name: str) -> boto3.resource:
         """Return the boto3 resource for the service.
+
+        Args:
+            session (boto3.session.Session): The boto3 session.
+            service_name (str): The name of the AWS service.
 
         Returns:
             boto3.resource: The boto3 resource for the service.
@@ -208,6 +218,10 @@ class AWSBotoConnector:
         self, session: boto3.session.Session, service_name: str
     ) -> boto3.client:
         """Return the boto3 client for the service.
+
+        Args:
+            session (boto3.session.Session): The boto3 session.
+            service_name (str): The name of the AWS service.
 
         Returns:
             boto3.client: The boto3 client for the service.

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Iterable
+from typing import Iterable, Union
 
 from singer_sdk.plugin_base import PluginBase as TapBaseClass
 from singer_sdk.streams import Stream
@@ -28,8 +28,8 @@ class TableStream(Stream):
             dynamodb_conn: The DynamoDbConnector object.
         """
         self._dynamodb_conn: DynamoDbConnector = dynamodb_conn
-        self._table_name = name
-        self._schema = None
+        self._table_name: str = name
+        self._schema: dict = {}
         super().__init__(
             tap=tap,
             schema=self.schema,

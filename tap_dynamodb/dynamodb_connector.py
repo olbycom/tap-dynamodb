@@ -1,3 +1,5 @@
+from typing import Any, Mapping
+
 import genson
 import orjson
 from botocore.exceptions import ClientError
@@ -85,7 +87,7 @@ class DynamoDbConnector(AWSBotoConnector):
             )
             raise
 
-    def get_table_json_schema(self, table_name: str, strategy: str = "infer"):
+    def get_table_json_schema(self, table_name: str, strategy: str = "infer") -> dict:
         sample_records = list(
             self.get_items_iter(
                 table_name, scan_kwargs={"Limit": 100, "ConsistentRead": True}

@@ -32,7 +32,7 @@ class TapDynamoDB(Tap):
             A list of discovered streams.
         """
         dynamodb_conn = DynamoDbConnector(
-            self.config,
+            dict(self.config),  # type: ignore
         )
         discovered_streams = []
         for table_name in self.config.get("tables") or dynamodb_conn.list_tables():
@@ -56,7 +56,7 @@ class TapDynamoDB(Tap):
                     target_jsonschema["properties"][k] = v
 
         _merge_missing(AWS_AUTH_CONFIG, config_jsonschema)
-        super().append_builtin_config(config_jsonschema)
+        super(TapDynamoDB, cls).append_builtin_config(config_jsonschema)  # type: ignore
 
 
 if __name__ == "__main__":
