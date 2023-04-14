@@ -1,5 +1,3 @@
-from typing import Any, Mapping
-
 import genson
 import orjson
 from botocore.exceptions import ClientError
