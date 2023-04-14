@@ -2,13 +2,50 @@ import genson
 import orjson
 from botocore.exceptions import ClientError
 
-from tap_dynamodb.aws_authenticators import AWSBotoAuthenticator
+from tap_dynamodb.connectors.aws_boto_connector import AWSBotoConnector
 from tap_dynamodb.exception import EmptyTableException
 
 
-class DynamoDB(AWSBotoAuthenticator):
-    def __init__(self, config):
-        super().__init__(config, "dynamodb")
+class DynamoDbConnector(AWSBotoConnector):
+    """DynamoDB connector class."""
+
+    def __init__(
+        self,
+        config: dict,
+    ) -> None:
+        """Initialize the connector.
+        
+        Args:
+            config: The connector configuration.
+        """
+        super().__init__(
+            config,
+            "dynamodb"
+        )
+
+    @staticmethod
+    def _coerce_types(record):
+        return orjson.loads(
+            orjson.dumps(
+                record,
+                default=lambda o: str(o),
+                option=orjson.OPT_OMIT_MICROSECONDS,
+            ).decode("utf-8")
+        )
+
+    def _recursively_drop_required(self, schema: dict) -> None:
+        """Recursively drop the required property from a schema.
+
+        This is used to clean up genson generated schemas which are strict by default.
+
+        Args:
+            schema: The json schema.
+        """
+        schema.pop("required", None)
+        if "properties" in schema:
+            for prop in schema["properties"]:
+                if schema["properties"][prop].get("type") == "object":
+                    self._recursively_drop_required(schema["properties"][prop])
 
     def list_tables(self, include=None):
         try:
@@ -26,15 +63,6 @@ class DynamoDB(AWSBotoAuthenticator):
         else:
             return tables
 
-    @staticmethod
-    def _coerce_types(record):
-        return orjson.loads(
-            orjson.dumps(
-                record,
-                default=lambda o: str(o),
-                option=orjson.OPT_OMIT_MICROSECONDS,
-            ).decode("utf-8")
-        )
 
     def get_items_iter(
         self, table_name: str, scan_kwargs: dict = {"ConsistentRead": True}
@@ -74,7 +102,7 @@ class DynamoDB(AWSBotoAuthenticator):
             for record in sample_records:
                 builder.add_object(self._coerce_types(record))
             schema = builder.to_schema()
-            self.recursively_drop_required(schema)
+            self._recursively_drop_required(schema)
             if not schema:
                 raise Exception("Inferring schema failed")
             else:
@@ -89,16 +117,3 @@ class DynamoDB(AWSBotoAuthenticator):
         key_schema = self.resource.Table(table_name).key_schema
         return [key.get("AttributeName") for key in key_schema]
 
-    def recursively_drop_required(self, schema: dict) -> None:
-        """Recursively drop the required property from a schema.
-
-        This is used to clean up genson generated schemas which are strict by default.
-
-        Args:
-            schema: The json schema.
-        """
-        schema.pop("required", None)
-        if "properties" in schema:
-            for prop in schema["properties"]:
-                if schema["properties"][prop].get("type") == "object":
-                    self.recursively_drop_required(schema["properties"][prop])

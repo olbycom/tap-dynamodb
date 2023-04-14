@@ -1,7 +1,7 @@
 import boto3
 from moto import mock_dynamodb
 
-from tap_dynamodb.dynamo import DynamoDB
+from tap_dynamodb.dynamodb_connector import DynamoDbConnector
 
 SAMPLE_CONFIG = {
     "aws_access_key_id": "foo",
@@ -33,7 +33,7 @@ def test_list_tables():
         create_table(moto_conn, f"table_{num}")
     # END PREP
 
-    db_obj = DynamoDB(SAMPLE_CONFIG)
+    db_obj = DynamoDbConnector(SAMPLE_CONFIG)
     tables = db_obj.list_tables()
     assert len(tables) == 105
     assert tables[0] == "table_1"
@@ -48,7 +48,7 @@ def test_list_tables_filtered():
     create_table(moto_conn, "table_to_skip")
     # END PREP
 
-    db_obj = DynamoDB(SAMPLE_CONFIG)
+    db_obj = DynamoDbConnector(SAMPLE_CONFIG)
     tables = db_obj.list_tables(["table_to_replicate"])
     assert len(tables) == 1
     assert tables[0] == "table_to_replicate"
@@ -67,7 +67,7 @@ def test_get_items():
     table.put_item(Item={"year": 2023, "title": "foo", "info": {"plot": "bar"}})
     # END PREP
 
-    db_obj = DynamoDB(SAMPLE_CONFIG)
+    db_obj = DynamoDbConnector(SAMPLE_CONFIG)
     records = list(db_obj.get_items_iter("table"))[0]
     assert len(records) == 1
     # Type coercion
@@ -87,7 +87,7 @@ def test_get_items_paginate():
         )
     # END PREP
 
-    db_obj = DynamoDB(SAMPLE_CONFIG)
+    db_obj = DynamoDbConnector(SAMPLE_CONFIG)
     iterations = 0
     records = []
     for i in db_obj.get_items_iter("table", {"Limit": 1, "ConsistentRead": True}):
@@ -112,7 +112,7 @@ def test_get_table_json_schema():
         )
     # END PREP
 
-    db_obj = DynamoDB(SAMPLE_CONFIG)
+    db_obj = DynamoDbConnector(SAMPLE_CONFIG)
     schema = db_obj.get_table_json_schema("table")
     assert schema == {
         "type": "object",
@@ -135,13 +135,13 @@ def test_get_table_key_properties():
         )
     # END PREP
 
-    db_obj = DynamoDB(SAMPLE_CONFIG)
+    db_obj = DynamoDbConnector(SAMPLE_CONFIG)
     assert ["year", "title"] == db_obj.get_table_key_properties("table")
 
 
 def test_coerce_types():
     import decimal
 
-    db_obj = DynamoDB(SAMPLE_CONFIG)
+    db_obj = DynamoDbConnector(SAMPLE_CONFIG)
     coerced = db_obj._coerce_types({"foo": decimal.Decimal("1.23")})
     assert coerced == {"foo": "1.23"}
