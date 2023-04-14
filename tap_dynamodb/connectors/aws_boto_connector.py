@@ -1,4 +1,3 @@
-import abc
 import logging
 import os
 from typing import Union
@@ -67,7 +66,7 @@ AWS_AUTH_CONFIG = th.PropertiesList(
 ).to_dict()
 
 
-class AWSBotoConnector(metaclass=abc.ABCMeta):
+class AWSBotoConnector:
     def __init__(
         self,
         config: dict,
