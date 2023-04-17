@@ -3,16 +3,16 @@ from unittest.mock import patch
 import pytest
 from moto import mock_dynamodb, mock_sts
 
-from tap_dynamodb.aws_authenticators import AWSBotoAuthenticator
+from tap_dynamodb.connectors.aws_boto_connector import AWSBotoConnector
 
 
 @patch(
-    "tap_dynamodb.aws_authenticators.boto3.Session",
+    "tap_dynamodb.connectors.aws_boto_connector.boto3.Session",
     return_value="mock_session",
 )
 @mock_dynamodb
 def test_get_session_base(patch):
-    auth = AWSBotoAuthenticator(
+    auth = AWSBotoConnector(
         {
             "aws_access_key_id": "foo",
             "aws_secret_access_key": "bar",
@@ -29,10 +29,13 @@ def test_get_session_base(patch):
     assert session == "mock_session"
 
 
-@patch("tap_dynamodb.aws_authenticators.boto3.Session", return_value="mock_session")
+@patch(
+    "tap_dynamodb.connectors.aws_boto_connector.boto3.Session",
+    return_value="mock_session",
+)
 @mock_dynamodb
 def test_get_session_w_token(patch):
-    auth = AWSBotoAuthenticator(
+    auth = AWSBotoConnector(
         {
             "aws_access_key_id": "foo",
             "aws_secret_access_key": "bar",
@@ -51,10 +54,13 @@ def test_get_session_w_token(patch):
     assert session == "mock_session"
 
 
-@patch("tap_dynamodb.aws_authenticators.boto3.Session", return_value="mock_session")
+@patch(
+    "tap_dynamodb.connectors.aws_boto_connector.boto3.Session",
+    return_value="mock_session",
+)
 @mock_dynamodb
 def test_get_session_w_profile(patch):
-    auth = AWSBotoAuthenticator(
+    auth = AWSBotoConnector(
         {
             "aws_profile": "foo",
         },
@@ -70,14 +76,14 @@ def test_get_session_w_profile(patch):
 @mock_dynamodb
 def test_get_session_empty_fail():
     with pytest.raises(Exception):
-        auth = AWSBotoAuthenticator({})
+        auth = AWSBotoConnector({})
         auth.get_session()
 
 
 @mock_dynamodb
 @mock_sts
 def test_get_session_assume_role():
-    auth = AWSBotoAuthenticator(
+    auth = AWSBotoConnector(
         {
             "aws_access_key_id": "foo",
             "aws_secret_access_key": "bar",
@@ -91,7 +97,7 @@ def test_get_session_assume_role():
 
 @mock_dynamodb
 def test_get_client():
-    auth = AWSBotoAuthenticator(
+    auth = AWSBotoConnector(
         {
             "aws_access_key_id": "foo",
             "aws_secret_access_key": "bar",
@@ -105,7 +111,7 @@ def test_get_client():
 
 @mock_dynamodb
 def test_get_resource():
-    auth = AWSBotoAuthenticator(
+    auth = AWSBotoConnector(
         {
             "aws_access_key_id": "foo",
             "aws_secret_access_key": "bar",

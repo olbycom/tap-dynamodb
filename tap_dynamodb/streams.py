@@ -4,35 +4,40 @@ from __future__ import annotations
 
 from typing import Iterable
 
+from singer_sdk.plugin_base import PluginBase as TapBaseClass
 from singer_sdk.streams import Stream
 
-from tap_dynamodb.dynamo import DynamoDB
+from tap_dynamodb.dynamodb_connector import DynamoDbConnector
 
 
 class TableStream(Stream):
     """Stream class for TableStream streams."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(
+        self,
+        tap: TapBaseClass,
+        name: str,
+        dynamodb_conn: DynamoDbConnector,
+    ):
         """
         Initialize a new TableStream object.
 
         Args:
-            *args: Positional arguments.
-            **kwargs: Keyword arguments.
-                table_name (str): Name of the DynamoDB table to stream.
-                dynamodb_obj (DynamoDB): Instance of the DynamoDB client.
-
+            tap: The parent tap object.
+            name: The name of the stream.
+            dynamodb_conn: The DynamoDbConnector object.
         """
-        self.table_name = kwargs.get("name")
-        self.dynamodb_obj: DynamoDB = kwargs.pop("dynamodb_obj")
-        self._schema = None
-        super().__init__(*args, **kwargs)
-
-    def get_jsonschema_type(self):
-        return "string"
+        self._dynamodb_conn: DynamoDbConnector = dynamodb_conn
+        self._table_name: str = name
+        self._schema: dict = {}
+        super().__init__(
+            tap=tap,
+            schema=self.schema,
+            name=name,
+        )
 
     def get_records(self, context: dict | None) -> Iterable[dict]:
-        for batch in self.dynamodb_obj.get_items_iter(self.table_name):
+        for batch in self._dynamodb_conn.get_items_iter(self._table_name):
             for record in batch:
                 yield record
 
@@ -46,8 +51,8 @@ class TableStream(Stream):
         """
         # TODO: SDC columns
         if not self._schema:
-            self._schema = self.dynamodb_obj.get_table_json_schema(self.table_name)
-            self.primary_keys = self.dynamodb_obj.get_table_key_properties(
-                self.table_name
+            self._schema = self._dynamodb_conn.get_table_json_schema(self._table_name)
+            self.primary_keys = self._dynamodb_conn.get_table_key_properties(
+                self._table_name
             )
         return self._schema
