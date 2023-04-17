@@ -15,21 +15,22 @@ Built with the [Meltano Singer SDK](https://sdk.meltano.com).
 
 ## Settings
 
-| Setting              | Required | Default | Description |
-|:---------------------|:--------:|:-------:|:------------|
-| aws_access_key_id    | False    | None    | The access key for your AWS account. |
-| aws_secret_access_key| False    | None    | The secret key for your AWS account. |
-| aws_session_token    | False    | None    | The session key for your AWS account. This is only needed when you are using temporary credentials. |
-| aws_profile          | False    | None    | The AWS credentials profile name to use. The profile must be configured and accessible. |
-| aws_default_region   | False    | None    | The default AWS region name (e.g. us-east-1)  |
-| aws_endpoint_url     | False    | None    | The complete URL to use for the constructed client. |
-| aws_assume_role_arn  | False    | None    | The role ARN to assume. |
-| use_aws_env_vars     | False    |       0 | Whether to retrieve aws credentials from environment variables. |
-| tables               | False    | None    | An array of table names to extract from. |
-| stream_maps          | False    | None    | Config object for stream maps capability. For more information check out [Stream Maps](https://sdk.meltano.com/en/latest/stream_maps.html). |
-| stream_map_config    | False    | None    | User-defined config values to be used within map expressions. |
-| flattening_enabled   | False    | None    | 'True' to enable schema flattening and automatically expand nested properties. |
-| flattening_max_depth | False    | None    | The max depth to flatten schemas. |
+| Setting                 | Required | Default | Description |
+|:------------------------|:--------:|:-------:|:------------|
+| tables                  | False    | None    | An array of table names to extract from. |
+| infer_schema_sample_size| False    |     100 | The amount of records to sample when inferring the schema. |
+| aws_access_key_id       | False    | None    | The access key for your AWS account. |
+| aws_secret_access_key   | False    | None    | The secret key for your AWS account. |
+| aws_session_token       | False    | None    | The session key for your AWS account. This is only needed when you are using temporary credentials. |
+| aws_profile             | False    | None    | The AWS credentials profile name to use. The profile must be configured and accessible. |
+| aws_default_region      | False    | None    | The default AWS region name (e.g. us-east-1)  |
+| aws_endpoint_url        | False    | None    | The complete URL to use for the constructed client. |
+| aws_assume_role_arn     | False    | None    | The role ARN to assume. |
+| use_aws_env_vars        | False    |       0 | Whether to retrieve aws credentials from environment variables. |
+| stream_maps             | False    | None    | Config object for stream maps capability. For more information check out [Stream Maps](https://sdk.meltano.com/en/latest/stream_maps.html). |
+| stream_map_config       | False    | None    | User-defined config values to be used within map expressions. |
+| flattening_enabled      | False    | None    | 'True' to enable schema flattening and automatically expand nested properties. |
+| flattening_max_depth    | False    | None    | The max depth to flatten schemas. |
 
 A full list of supported settings and capabilities is available by running: `tap-dynamodb --about`
 

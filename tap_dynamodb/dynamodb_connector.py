@@ -85,12 +85,21 @@ class DynamoDbConnector(AWSBotoConnector):
             )
             raise
 
-    def get_table_json_schema(self, table_name: str, strategy: str = "infer") -> dict:
-        sample_records = list(
-            self.get_items_iter(
-                table_name, scan_kwargs={"Limit": 100, "ConsistentRead": True}
-            )
-        )[0]
+    def _get_sample_records(self, table_name: str, sample_size: int) -> list:
+        sample_records = []
+        for batch in self.get_items_iter(
+            table_name, scan_kwargs={"Limit": sample_size, "ConsistentRead": True}
+        ):
+            sample_records.extend(batch)
+            if len(sample_records) >= sample_size:
+                break
+        return sample_records
+
+    def get_table_json_schema(
+        self, table_name: str, sample_size, strategy: str = "infer"
+    ) -> dict:
+        sample_records = self._get_sample_records(table_name, sample_size)
+
         if not sample_records:
             raise EmptyTableException()
         if strategy == "infer":

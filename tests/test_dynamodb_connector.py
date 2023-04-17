@@ -113,7 +113,7 @@ def test_get_table_json_schema():
     # END PREP
 
     db_obj = DynamoDbConnector(SAMPLE_CONFIG)
-    schema = db_obj.get_table_json_schema("table")
+    schema = db_obj.get_table_json_schema("table", 5)
     assert schema == {
         "type": "object",
         "properties": {
@@ -145,3 +145,19 @@ def test_coerce_types():
     db_obj = DynamoDbConnector(SAMPLE_CONFIG)
     coerced = db_obj._coerce_types({"foo": decimal.Decimal("1.23")})
     assert coerced == {"foo": "1.23"}
+
+
+@mock_dynamodb
+def test_get_sample_records():
+    # PREP
+    moto_conn = boto3.resource("dynamodb", region_name="us-west-2")
+    table = create_table(moto_conn, "table")
+    for num in range(5):
+        table.put_item(
+            Item={"year": 2023, "title": f"foo_{num}", "info": {"plot": "bar"}}
+        )
+    # END PREP
+
+    db_obj = DynamoDbConnector(SAMPLE_CONFIG)
+    records = db_obj._get_sample_records("table", 2)
+    assert len(records) == 2

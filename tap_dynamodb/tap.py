@@ -23,6 +23,12 @@ class TapDynamoDB(Tap):
             th.ArrayType(th.StringType),
             description="An array of table names to extract from.",
         ),
+        th.Property(
+            "infer_schema_sample_size",
+            th.IntegerType,
+            description="The amount of records to sample when inferring the schema.",
+            default=100,
+        ),
     ).to_dict()
 
     def discover_streams(self) -> list[streams.TableStream]:
