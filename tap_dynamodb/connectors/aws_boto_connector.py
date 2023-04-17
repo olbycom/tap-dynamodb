@@ -167,6 +167,12 @@ class AWSBotoConnector:
                 aws_session_token=self.aws_session_token,
                 region_name=self.aws_default_region,
             )
+            self.logger.info(
+                (
+                    "Authenticating using access key id, secret access key, and "
+                    "session token."
+                )
+            )
         elif (
             self.aws_access_key_id
             and self.aws_secret_access_key
@@ -177,11 +183,15 @@ class AWSBotoConnector:
                 aws_secret_access_key=self.aws_secret_access_key,
                 region_name=self.aws_default_region,
             )
+            self.logger.info(
+                "Authenticating using access key id and secret access key."
+            )
         elif self.aws_profile:
             session = boto3.Session(profile_name=self.aws_profile)
-            self.logger.info("Using installed shared credentials file.")
+            self.logger.info("Authenticating using profile.")
         else:
-            raise Exception("Explicit AWS auth not provided")
+            session = boto3.Session()
+            self.logger.info("Authenticating using implicit pre-installed credentials.")
 
         if self.aws_assume_role_arn:
             if not session:

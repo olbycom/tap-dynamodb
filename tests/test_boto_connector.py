@@ -1,6 +1,5 @@
 from unittest.mock import patch
 
-import pytest
 from moto import mock_dynamodb, mock_sts
 
 from tap_dynamodb.connectors.aws_boto_connector import AWSBotoConnector
@@ -73,11 +72,16 @@ def test_get_session_w_profile(patch):
     assert session == "mock_session"
 
 
+@patch(
+    "tap_dynamodb.connectors.aws_boto_connector.boto3.Session",
+    return_value="mock_session",
+)
 @mock_dynamodb
-def test_get_session_empty_fail():
-    with pytest.raises(Exception):
-        auth = AWSBotoConnector({})
-        auth.get_session()
+def test_get_session_implicit(patch):
+    auth = AWSBotoConnector({}, "dynamodb")
+    session = auth.get_session()
+    patch.assert_called_with()
+    assert session == "mock_session"
 
 
 @mock_dynamodb
