@@ -47,6 +47,9 @@ class TapDynamoDB(Tap):
                     tap=self,
                     name=table_name,
                     dynamodb_conn=dynamodb_conn,
+                    infer_schema_sample_size=self.config.get(
+                        "infer_schema_sample_size"
+                    ),
                 )
                 discovered_streams.append(stream)
             except EmptyTableException:
