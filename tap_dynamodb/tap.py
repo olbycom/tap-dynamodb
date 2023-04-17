@@ -23,6 +23,12 @@ class TapDynamoDB(Tap):
             th.ArrayType(th.StringType),
             description="An array of table names to extract from.",
         ),
+        th.Property(
+            "infer_schema_sample_size",
+            th.IntegerType,
+            description="The amount of records to sample when inferring the schema.",
+            default=100,
+        ),
     ).to_dict()
 
     def discover_streams(self) -> list[streams.TableStream]:
@@ -41,6 +47,9 @@ class TapDynamoDB(Tap):
                     tap=self,
                     name=table_name,
                     dynamodb_conn=dynamodb_conn,
+                    infer_schema_sample_size=self.config.get(
+                        "infer_schema_sample_size"
+                    ),
                 )
                 discovered_streams.append(stream)
             except EmptyTableException:
