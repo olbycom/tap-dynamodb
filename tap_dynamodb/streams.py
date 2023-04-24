@@ -38,7 +38,7 @@ class TableStream(Stream):
             super().__init__(
                 name=name,
                 tap=tap,
-                schema=tap.input_catalog.get(name).to_dict().get("schema")
+                schema=tap.input_catalog.get(name).to_dict().get("schema"),
             )
         else:
             super().__init__(name=name, tap=tap)
