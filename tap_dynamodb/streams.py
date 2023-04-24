@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from singer_sdk.plugin_base import PluginBase as TapBaseClass
 from singer_sdk.streams import Stream
+from singer_sdk.tap_base import Tap
 
 from tap_dynamodb.dynamodb_connector import DynamoDbConnector
 
@@ -15,13 +15,12 @@ class TableStream(Stream):
 
     def __init__(
         self,
-        tap: TapBaseClass,
+        tap: Tap,
         name: str,
         dynamodb_conn: DynamoDbConnector,
         infer_schema_sample_size,
     ):
-        """
-        Initialize a new TableStream object.
+        """Initialize a new TableStream object.
 
         Args:
             tap: The parent tap object.
@@ -29,12 +28,30 @@ class TableStream(Stream):
             dynamodb_conn: The DynamoDbConnector object.
             infer_schema_sample_size: The amount of records to sample when
                 inferring the schema.
+
+        Raises:
+            Exception: If an input catalog is provided and the table is
+                not found in it.
         """
         self._dynamodb_conn: DynamoDbConnector = dynamodb_conn
         self._table_name: str = name
         self._schema: dict = {}
         self._infer_schema_sample_size = infer_schema_sample_size
-        super().__init__(name=name, tap=tap)
+        if tap.input_catalog:
+            catalog_entry = tap.input_catalog.get(name)
+            if catalog_entry:
+                super().__init__(
+                    name=name,
+                    tap=tap,
+                    schema=catalog_entry.to_dict().get("schema"),
+                )
+            else:
+                raise Exception(
+                    f"Catalog provided with selected table '{name}' missing. "
+                    "Either add the table to the catalog or remove it from the config."
+                )
+        else:
+            super().__init__(name=name, tap=tap)
 
     def get_records(self, context: dict | None) -> Iterable[dict]:
         for batch in self._dynamodb_conn.get_items_iter(self._table_name):
