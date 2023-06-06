@@ -60,9 +60,11 @@ class DynamoDbConnector(AWSBotoConnector):
         else:
             return tables
 
-    def get_items_iter(
-        self, table_name: str, scan_kwargs: dict = {"ConsistentRead": True}
-    ):
+    def get_items_iter(self, table_name: str, scan_kwargs_override: dict):
+        scan_kwargs = scan_kwargs_override.copy()
+        if "ConsistentRead" not in scan_kwargs:
+            scan_kwargs["ConsistentRead"] = True
+
         table = self.resource.Table(table_name)
         try:
             done = False
@@ -85,20 +87,26 @@ class DynamoDbConnector(AWSBotoConnector):
             )
             raise
 
-    def _get_sample_records(self, table_name: str, sample_size: int) -> list:
+    def _get_sample_records(
+        self, table_name: str, sample_size: int, scan_kwargs_override: dict
+    ) -> list:
+        scan_kwargs = scan_kwargs_override.copy()
         sample_records = []
-        for batch in self.get_items_iter(
-            table_name, scan_kwargs={"Limit": sample_size, "ConsistentRead": True}
-        ):
+        if "ConsistentRead" not in scan_kwargs:
+            scan_kwargs["ConsistentRead"] = True
+        if "Limit" not in scan_kwargs:
+            scan_kwargs["Limit"] = sample_size
+
+        for batch in self.get_items_iter(table_name, scan_kwargs):
             sample_records.extend(batch)
             if len(sample_records) >= sample_size:
                 break
         return sample_records
 
     def get_table_json_schema(
-        self, table_name: str, sample_size, strategy: str = "infer"
+        self, table_name: str, sample_size, scan_kwargs: dict, strategy: str = "infer"
     ) -> dict:
-        sample_records = self._get_sample_records(table_name, sample_size)
+        sample_records = self._get_sample_records(table_name, sample_size, scan_kwargs)
 
         if not sample_records:
             raise EmptyTableException()

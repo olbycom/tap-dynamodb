@@ -68,10 +68,31 @@ def test_get_items():
     # END PREP
 
     db_obj = DynamoDbConnector(SAMPLE_CONFIG)
-    records = list(db_obj.get_items_iter("table"))[0]
+    records = list(db_obj.get_items_iter("table", {}))[0]
     assert len(records) == 1
     # Type coercion
     assert records[0].get("year") == "2023"
+    assert records[0].get("title") == "foo"
+    assert records[0].get("info") == {"plot": "bar"}
+
+
+@mock_dynamodb
+def test_get_items_w_kwargs():
+    # PREP
+    moto_conn = boto3.resource("dynamodb", region_name="us-west-2")
+    table = create_table(moto_conn, "table")
+    table.put_item(Item={"year": 2023, "title": "foo", "info": {"plot": "bar"}})
+    # END PREP
+
+    db_obj = DynamoDbConnector(SAMPLE_CONFIG)
+    records = list(
+        db_obj.get_items_iter(
+            "table",
+            {"Select": "SPECIFIC_ATTRIBUTES", "ProjectionExpression": "title, info"},
+        )
+    )[0]
+    assert len(records) == 1
+    # Type coercion
     assert records[0].get("title") == "foo"
     assert records[0].get("info") == {"plot": "bar"}
 
@@ -113,11 +134,37 @@ def test_get_table_json_schema():
     # END PREP
 
     db_obj = DynamoDbConnector(SAMPLE_CONFIG)
-    schema = db_obj.get_table_json_schema("table", 5)
+    schema = db_obj.get_table_json_schema("table", 5, {})
     assert schema == {
         "type": "object",
         "properties": {
             "year": {"type": "string"},
+            "title": {"type": "string"},
+            "info": {"type": "object", "properties": {"plot": {"type": "string"}}},
+        },
+    }
+
+
+@mock_dynamodb
+def test_get_table_json_schema_w_kwargs():
+    # PREP
+    moto_conn = boto3.resource("dynamodb", region_name="us-west-2")
+    table = create_table(moto_conn, "table")
+    for num in range(5):
+        table.put_item(
+            Item={"year": 2023, "title": f"foo_{num}", "info": {"plot": "bar"}}
+        )
+    # END PREP
+
+    db_obj = DynamoDbConnector(SAMPLE_CONFIG)
+    schema = db_obj.get_table_json_schema(
+        "table",
+        5,
+        {"Select": "SPECIFIC_ATTRIBUTES", "ProjectionExpression": "title, info"},
+    )
+    assert schema == {
+        "type": "object",
+        "properties": {
             "title": {"type": "string"},
             "info": {"type": "object", "properties": {"plot": {"type": "string"}}},
         },
@@ -159,5 +206,5 @@ def test_get_sample_records():
     # END PREP
 
     db_obj = DynamoDbConnector(SAMPLE_CONFIG)
-    records = db_obj._get_sample_records("table", 2)
+    records = db_obj._get_sample_records("table", 2, {})
     assert len(records) == 2

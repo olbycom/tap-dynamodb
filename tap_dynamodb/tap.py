@@ -29,6 +29,14 @@ class TapDynamoDB(Tap):
             description="The amount of records to sample when inferring the schema.",
             default=100,
         ),
+        th.Property(
+            "table_scan_kwargs",
+            th.ObjectType(),
+            description=(
+                "A mapping of table name to the scan kwargs that should be used to "
+                "override the default when querying that table."
+            ),
+        ),
     ).to_dict()
 
     def discover_streams(self) -> list[streams.TableStream]:

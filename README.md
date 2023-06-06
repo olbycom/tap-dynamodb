@@ -19,6 +19,7 @@ Built with the [Meltano Singer SDK](https://sdk.meltano.com).
 |:------------------------|:--------:|:-------:|:------------|
 | tables                  | False    | None    | An array of table names to extract from. |
 | infer_schema_sample_size| False    |     100 | The amount of records to sample when inferring the schema. |
+| table_scan_kwargs       | False    | None    | A mapping of table name to the scan kwargs that should be used to override the default when querying that table. |
 | aws_access_key_id       | False    | None    | The access key for your AWS account. |
 | aws_secret_access_key   | False    | None    | The secret key for your AWS account. |
 | aws_session_token       | False    | None    | The session key for your AWS account. This is only needed when you are using temporary credentials. |
