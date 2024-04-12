@@ -1,5 +1,5 @@
 import boto3
-from moto import mock_dynamodb
+from moto import mock_aws
 
 from tap_dynamodb.dynamodb_connector import DynamoDbConnector
 
@@ -25,7 +25,7 @@ def create_table(moto_conn, name):
     )
 
 
-@mock_dynamodb
+@mock_aws
 def test_list_tables():
     # PREP
     moto_conn = boto3.resource("dynamodb", region_name="us-west-2")
@@ -40,7 +40,7 @@ def test_list_tables():
     assert tables[-1] == "table_105"
 
 
-@mock_dynamodb
+@mock_aws
 def test_list_tables_filtered():
     # PREP
     moto_conn = boto3.resource("dynamodb", region_name="us-west-2")
@@ -59,7 +59,7 @@ def test_list_tables_filtered():
     assert len(tables) == 0
 
 
-@mock_dynamodb
+@mock_aws
 def test_get_items():
     # PREP
     moto_conn = boto3.resource("dynamodb", region_name="us-west-2")
@@ -76,7 +76,7 @@ def test_get_items():
     assert records[0].get("info") == {"plot": "bar"}
 
 
-@mock_dynamodb
+@mock_aws
 def test_get_items_w_kwargs():
     # PREP
     moto_conn = boto3.resource("dynamodb", region_name="us-west-2")
@@ -97,7 +97,7 @@ def test_get_items_w_kwargs():
     assert records[0].get("info") == {"plot": "bar"}
 
 
-@mock_dynamodb
+@mock_aws
 def test_get_items_paginate():
     # PREP
     moto_conn = boto3.resource("dynamodb", region_name="us-west-2")
@@ -122,7 +122,7 @@ def test_get_items_paginate():
     assert first_item.get("info") == {"plot": "bar"}
 
 
-@mock_dynamodb
+@mock_aws
 def test_get_table_json_schema():
     # PREP
     moto_conn = boto3.resource("dynamodb", region_name="us-west-2")
@@ -145,7 +145,7 @@ def test_get_table_json_schema():
     }
 
 
-@mock_dynamodb
+@mock_aws
 def test_get_table_json_schema_w_kwargs():
     # PREP
     moto_conn = boto3.resource("dynamodb", region_name="us-west-2")
@@ -171,7 +171,7 @@ def test_get_table_json_schema_w_kwargs():
     }
 
 
-@mock_dynamodb
+@mock_aws
 def test_get_table_key_properties():
     # PREP
     moto_conn = boto3.resource("dynamodb", region_name="us-west-2")
@@ -194,7 +194,7 @@ def test_coerce_types():
     assert coerced == {"foo": "1.23"}
 
 
-@mock_dynamodb
+@mock_aws
 def test_get_sample_records():
     # PREP
     moto_conn = boto3.resource("dynamodb", region_name="us-west-2")
