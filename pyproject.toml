@@ -25,7 +25,7 @@ orjson = "^3.8.9"
 pytest = "^8.1.1"
 flake8 = "^5.0.4"
 darglint = { version = "^1.8.1", "python" = "<4" }
-black = "^24.3.0"
+black = "^24.4.0"
 pyupgrade = "^3.3.1"
 mypy = "^1.0.0"
 isort = "^5.11.5"
