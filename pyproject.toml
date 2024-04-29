@@ -27,7 +27,7 @@ flake8 = "^5.0.4"
 darglint = { version = "^1.8.1", "python" = "<4" }
 black = "^24.4.0"
 pyupgrade = "^3.3.1"
-mypy = "^1.0.0"
+mypy = "^1.10.0"
 isort = "^5.11.5"
 singer-sdk = { version="^0.37.0", extras = ["testing"] }
 moto = "^5.0.5"
