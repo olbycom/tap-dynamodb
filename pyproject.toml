@@ -30,7 +30,7 @@ pyupgrade = "^3.3.1"
 mypy = "^1.10.1"
 isort = "^5.11.5"
 singer-sdk = { version="^0.38.0", extras = ["testing"] }
-moto = "^5.0.9"
+moto = "^5.0.10"
 coverage = "^7.5.4"
 pydocstyle = "^6.3.0"
 
