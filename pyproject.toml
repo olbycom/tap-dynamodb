@@ -53,3 +53,9 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry.scripts]
 # CLI declaration
 tap-dynamodb = 'tap_dynamodb.tap:TapDynamoDB.cli'
+
+[tool.pytest.ini_options]
+filterwarnings = [
+  "error",
+  "ignore:datetime.datetime.utcnow:DeprecationWarning:botocore.auth", # https://github.com/boto/boto3/issues/3889
+]
