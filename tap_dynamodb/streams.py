@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Iterable
+from typing import TYPE_CHECKING, Iterable
 
 from singer_sdk.streams import Stream
 from singer_sdk.tap_base import Tap
 
 from tap_dynamodb.dynamodb_connector import DynamoDbConnector
+
+if TYPE_CHECKING:
+    from singer_sdk.helpers.types import Context
 
 
 class TableStream(Stream):
@@ -56,7 +59,7 @@ class TableStream(Stream):
         else:
             super().__init__(name=name, tap=tap)
 
-    def get_records(self, context: dict | None) -> Iterable[dict]:
+    def get_records(self, context: Context | None) -> Iterable[dict]:
         for batch in self._dynamodb_conn.get_items_iter(
             self._table_name,
             self._table_scan_kwargs,
