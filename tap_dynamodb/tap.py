@@ -2,20 +2,25 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from singer_sdk import Tap
 from singer_sdk import typing as th  # JSON schema typing helpers
-from singer_sdk.plugin_base import PluginBase
 
 from tap_dynamodb import streams
 from tap_dynamodb.connectors.aws_boto_connector import AWS_AUTH_CONFIG
 from tap_dynamodb.dynamodb_connector import DynamoDbConnector
 from tap_dynamodb.exception import EmptyTableException
 
+if TYPE_CHECKING:
+    from singer_sdk.plugin_base import PluginBase
+
 
 class TapDynamoDB(Tap):
     """DynamoDB tap class."""
 
     name = "tap-dynamodb"
+    package_name = "meltanolabs-tap-dynamodb"
 
     config_jsonschema = th.PropertiesList(
         th.Property(
@@ -66,6 +71,8 @@ class TapDynamoDB(Tap):
 
     @classmethod
     def append_builtin_config(cls: type[PluginBase], config_jsonschema: dict) -> None:
+        """Append the built-in config JSON schema for this tap."""
+
         def _merge_missing(source_jsonschema: dict, target_jsonschema: dict) -> None:
             # Append any missing properties in the target with those from source.
             for k, v in source_jsonschema["properties"].items():
@@ -73,7 +80,7 @@ class TapDynamoDB(Tap):
                     target_jsonschema["properties"][k] = v
 
         _merge_missing(AWS_AUTH_CONFIG, config_jsonschema)
-        super(TapDynamoDB, cls).append_builtin_config(config_jsonschema)  # type: ignore
+        super().append_builtin_config(config_jsonschema)  # type: ignore
 
 
 if __name__ == "__main__":

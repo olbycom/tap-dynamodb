@@ -1,12 +1,15 @@
+"""DynamoDB connector class."""
+
 import genson
 import orjson
 from botocore.exceptions import ClientError
+from mypy_boto3_dynamodb import DynamoDBClient, DynamoDBServiceResource
 
 from tap_dynamodb.connectors.aws_boto_connector import AWSBotoConnector
 from tap_dynamodb.exception import EmptyTableException
 
 
-class DynamoDbConnector(AWSBotoConnector):
+class DynamoDbConnector(AWSBotoConnector[DynamoDBServiceResource, DynamoDBClient]):
     """DynamoDB connector class."""
 
     def __init__(
@@ -45,6 +48,7 @@ class DynamoDbConnector(AWSBotoConnector):
                     self._recursively_drop_required(schema["properties"][prop])
 
     def list_tables(self, include=None):
+        """List tables in DynamoDB."""
         try:
             tables = []
             for table in self.resource.tables.all():
@@ -61,6 +65,7 @@ class DynamoDbConnector(AWSBotoConnector):
             return tables
 
     def get_items_iter(self, table_name: str, scan_kwargs_override: dict):
+        """Get items from a table in DynamoDB."""
         scan_kwargs = scan_kwargs_override.copy()
         if "ConsistentRead" not in scan_kwargs:
             scan_kwargs["ConsistentRead"] = True
@@ -106,6 +111,7 @@ class DynamoDbConnector(AWSBotoConnector):
     def get_table_json_schema(
         self, table_name: str, sample_size, scan_kwargs: dict, strategy: str = "infer"
     ) -> dict:
+        """Get the JSON schema for a table in DynamoDB."""
         sample_records = self._get_sample_records(table_name, sample_size, scan_kwargs)
 
         if not sample_records:
@@ -127,5 +133,6 @@ class DynamoDbConnector(AWSBotoConnector):
         return schema
 
     def get_table_key_properties(self, table_name):
+        """Get the key properties for a table in DynamoDB."""
         key_schema = self.resource.Table(table_name).key_schema
         return [key.get("AttributeName") for key in key_schema]

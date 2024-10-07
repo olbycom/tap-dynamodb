@@ -5,51 +5,36 @@ name: Test tap-dynamodb
 
 on: [push]
 
+env:
+  FORCE_COLOR: 1
+
 jobs:
   linting:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        # Only lint using the primary version used for dev
-        python-version: ["3.12"]
     steps:
     - uses: actions/checkout@v4
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+    - uses: actions/setup-python@v5
       with:
-        python-version: ${{ matrix.python-version }}
-    - name: Install pipx and Poetry
-      run: |
-        pip install pipx poetry
-    - name: Run lint command from tox.ini
-      run: |
-        pipx run tox -e lint
+        python-version: 3.x
+    - run: pipx install tox
+    - run: tox -e lint
 
   pytest:
     runs-on: ubuntu-latest
-    env:
-      GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
     strategy:
       fail-fast: false
       matrix:
         python-version:
-        - "3.8"
         - "3.9"
         - "3.10"
         - "3.11"
         - "3.12"
+        - "3.13"
     steps:
     - uses: actions/checkout@v4
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+    - uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Install Poetry
-      run: |
-        pip install poetry
-    - name: Install dependencies
-      run: |
-        poetry install
-    - name: Test with pytest
-      run: |
-        poetry run pytest
+        allow-prereleases: true
+    - run: pipx install tox
+    - run: tox -e $(echo py${{ matrix.python-version }} | tr -d .)

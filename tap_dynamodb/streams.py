@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Iterable
+import typing as t
 
 from singer_sdk.streams import Stream
-from singer_sdk.tap_base import Tap
 
-from tap_dynamodb.dynamodb_connector import DynamoDbConnector
+if t.TYPE_CHECKING:
+    from collections.abc import Iterable
 
-if TYPE_CHECKING:
     from singer_sdk.helpers.types import Context
+    from singer_sdk.tap_base import Tap
+
+    from tap_dynamodb.dynamodb_connector import DynamoDbConnector
 
 
 class TableStream(Stream):
@@ -60,16 +62,17 @@ class TableStream(Stream):
             super().__init__(name=name, tap=tap)
 
     def get_records(self, context: Context | None) -> Iterable[dict]:
+        """Generate records from the stream."""
         for batch in self._dynamodb_conn.get_items_iter(
             self._table_name,
             self._table_scan_kwargs,
         ):
-            for record in batch:
-                yield record
+            yield from batch
 
     @property
     def schema(self) -> dict:
         """Dynamically detect the json schema for the stream.
+
         This is evaluated prior to any records being retrieved.
 
         Returns:
