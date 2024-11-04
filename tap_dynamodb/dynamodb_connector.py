@@ -4,6 +4,7 @@ import genson
 import orjson
 from botocore.exceptions import ClientError
 from mypy_boto3_dynamodb import DynamoDBClient, DynamoDBServiceResource
+from singer_sdk import typing as th  # JSON schema typing helpers
 
 from tap_dynamodb.connectors.aws_boto_connector import AWSBotoConnector
 from tap_dynamodb.exception import EmptyTableException
@@ -78,9 +79,7 @@ class DynamoDbConnector(AWSBotoConnector[DynamoDBServiceResource, DynamoDBClient
                 if start_key:
                     scan_kwargs["ExclusiveStartKey"] = start_key
                 response = table.scan(**scan_kwargs)
-                yield [
-                    self._coerce_types(record) for record in response.get("Items", [])
-                ]
+                yield [self._coerce_types(record) for record in response.get("Items", [])]
                 start_key = response.get("LastEvaluatedKey", None)
                 done = start_key is None
         except ClientError as err:
@@ -92,9 +91,7 @@ class DynamoDbConnector(AWSBotoConnector[DynamoDBServiceResource, DynamoDBClient
             )
             raise
 
-    def _get_sample_records(
-        self, table_name: str, sample_size: int, scan_kwargs_override: dict
-    ) -> list:
+    def _get_sample_records(self, table_name: str, sample_size: int, scan_kwargs_override: dict) -> list:
         scan_kwargs = scan_kwargs_override.copy()
         sample_records = []
         if "ConsistentRead" not in scan_kwargs:
@@ -108,14 +105,15 @@ class DynamoDbConnector(AWSBotoConnector[DynamoDBServiceResource, DynamoDBClient
                 break
         return sample_records
 
-    def get_table_json_schema(
-        self, table_name: str, sample_size, scan_kwargs: dict, strategy: str = "infer"
-    ) -> dict:
+    def get_table_json_schema(self, table_name: str, sample_size, scan_kwargs: dict, strategy: str = "infer") -> dict:
         """Get the JSON schema for a table in DynamoDB."""
         sample_records = self._get_sample_records(table_name, sample_size, scan_kwargs)
 
         if not sample_records:
-            raise EmptyTableException()
+            self.logger.warning(f"No records found for table '{table_name}', generating empty schema.")
+            self._primary_keys = self.get_table_key_properties(table_name)
+            properties = [th.Property(key, th.StringType) for key in self._primary_keys]
+            return th.PropertiesList(*properties).to_dict()
         if strategy == "infer":
             builder = genson.SchemaBuilder(schema_uri=None)
             for record in sample_records:
@@ -125,9 +123,7 @@ class DynamoDbConnector(AWSBotoConnector[DynamoDBServiceResource, DynamoDBClient
             if not schema:
                 raise Exception("Inferring schema failed")
             else:
-                self.logger.info(
-                    f"Inferring schema successful for table: '{table_name}'"
-                )
+                self.logger.info(f"Inferring schema successful for table: '{table_name}'")
         else:
             raise Exception(f"Strategy {strategy} not supported")
         return schema

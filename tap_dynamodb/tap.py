@@ -10,7 +10,6 @@ from singer_sdk import typing as th  # JSON schema typing helpers
 from tap_dynamodb import streams
 from tap_dynamodb.connectors.aws_boto_connector import AWS_AUTH_CONFIG
 from tap_dynamodb.dynamodb_connector import DynamoDbConnector
-from tap_dynamodb.exception import EmptyTableException
 
 if TYPE_CHECKING:
     from singer_sdk.plugin_base import PluginBase
@@ -55,18 +54,14 @@ class TapDynamoDB(Tap):
         )
         discovered_streams = []
         for table_name in self.config.get("tables") or dynamodb_conn.list_tables():
-            try:
-                stream = streams.TableStream(
-                    tap=self,
-                    name=table_name,
-                    dynamodb_conn=dynamodb_conn,
-                    infer_schema_sample_size=self.config.get(
-                        "infer_schema_sample_size"
-                    ),
-                )
-                discovered_streams.append(stream)
-            except EmptyTableException:
-                self.logger.warning(f"Skipping '{table_name}'. No records found.")
+            stream = streams.TableStream(
+                tap=self,
+                name=table_name,
+                dynamodb_conn=dynamodb_conn,
+                infer_schema_sample_size=self.config.get("infer_schema_sample_size"),
+            )
+            discovered_streams.append(stream)
+
         return discovered_streams
 
     @classmethod
