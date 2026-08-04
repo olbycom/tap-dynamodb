@@ -52,6 +52,18 @@ class TapDynamoDB(Tap):
             default="infer_schema",
             allowed_values=["envelope", "infer_schema"],
         ),
+        th.Property(
+            "replication_key_lookback_days",
+            th.IntegerType,
+            description=(
+                "For incremental streams, how many days to look back from the last saved "
+                "replication key value before filtering. DynamoDB scans use eventually "
+                "consistent reads by default, so a record written just as a previous scan "
+                "passed over it can be read stale; the lookback re-scans that trailing "
+                "window so it isn't silently skipped forever. Set to 0 to disable."
+            ),
+            default=7,
+        ),
     ).to_dict()
 
     def discover_streams(self) -> list[streams.TableStream]:

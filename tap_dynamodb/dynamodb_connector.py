@@ -98,7 +98,13 @@ class DynamoDbConnector(AWSBotoConnector[DynamoDBServiceResource, DynamoDBClient
         """Get items from a table in DynamoDB."""
         scan_kwargs = scan_kwargs_override.copy()
         if "ConsistentRead" not in scan_kwargs:
-            scan_kwargs["ConsistentRead"] = True
+            # Strongly consistent reads cost 2x the RCUs of eventually consistent ones.
+            # Full-table streams re-scan everything every run (no bookmark), and
+            # incremental streams protect against eventual-consistency staleness with
+            # a lookback window (see TableStream._apply_lookback_window), so eventual
+            # consistency is safe to default to here. Callers can still force strong
+            # consistency per-table via `table_scan_kwargs`.
+            scan_kwargs["ConsistentRead"] = False
 
         table = self.resource.Table(table_name)
         done = False
@@ -137,7 +143,7 @@ class DynamoDbConnector(AWSBotoConnector[DynamoDBServiceResource, DynamoDBClient
         scan_kwargs = scan_kwargs_override.copy()
         sample_records = []
         if "ConsistentRead" not in scan_kwargs:
-            scan_kwargs["ConsistentRead"] = True
+            scan_kwargs["ConsistentRead"] = False
         if "Limit" not in scan_kwargs:
             scan_kwargs["Limit"] = sample_size
 

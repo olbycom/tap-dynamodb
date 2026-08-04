@@ -208,3 +208,50 @@ def test_get_sample_records():
     db_obj = DynamoDbConnector(SAMPLE_CONFIG)
     records = db_obj._get_sample_records("table", 2, {})
     assert len(records) == 2
+
+
+class _FakeTable:
+    def __init__(self):
+        self.scan_calls = []
+
+    def scan(self, **kwargs):
+        self.scan_calls.append(kwargs)
+        return {"Items": []}
+
+
+class _FakeResource:
+    def __init__(self, table):
+        self._table = table
+
+    def Table(self, name):  # noqa: N802 (matches boto3's resource API)
+        return self._table
+
+
+def test_get_items_iter_defaults_to_eventually_consistent(monkeypatch):
+    db_obj = DynamoDbConnector(SAMPLE_CONFIG)
+    fake_table = _FakeTable()
+    monkeypatch.setattr(DynamoDbConnector, "resource", property(lambda self: _FakeResource(fake_table)))
+
+    list(db_obj.get_items_iter("table", {}))
+
+    assert fake_table.scan_calls[0]["ConsistentRead"] is False
+
+
+def test_get_items_iter_respects_consistent_read_override(monkeypatch):
+    db_obj = DynamoDbConnector(SAMPLE_CONFIG)
+    fake_table = _FakeTable()
+    monkeypatch.setattr(DynamoDbConnector, "resource", property(lambda self: _FakeResource(fake_table)))
+
+    list(db_obj.get_items_iter("table", {"ConsistentRead": True}))
+
+    assert fake_table.scan_calls[0]["ConsistentRead"] is True
+
+
+def test_get_sample_records_defaults_to_eventually_consistent(monkeypatch):
+    db_obj = DynamoDbConnector(SAMPLE_CONFIG)
+    fake_table = _FakeTable()
+    monkeypatch.setattr(DynamoDbConnector, "resource", property(lambda self: _FakeResource(fake_table)))
+
+    db_obj._get_sample_records("table", 2, {})
+
+    assert fake_table.scan_calls[0]["ConsistentRead"] is False

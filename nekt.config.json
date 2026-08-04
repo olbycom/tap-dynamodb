@@ -73,6 +73,14 @@
                         "dependent_allowed_values": [
                             "infer_schema"
                         ]
+                    },
+                    "replication_key_lookback_days": {
+                        "type": "integer",
+                        "order": 5,
+                        "title": "Incremental lookback window (days)",
+                        "default": 7,
+                        "el_type": "extractor",
+                        "description": "For tables replicated incrementally, how many days to re-scan before the last saved replication key value. Protects against DynamoDB's eventually consistent reads silently skipping records that were mid-write during a previous scan. Set to 0 to disable."
                     }
                 }
             }
