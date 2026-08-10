@@ -25,23 +25,25 @@ if t.TYPE_CHECKING:
     from tap_dynamodb.dynamodb_connector import DynamoDbConnector
 
 
-_ISO8601_DATE_PATTERN = re.compile(r"^(?P<date>\d{4}-\d{2}-\d{2})(?P<rest>T.*)?$")
+# The separator is captured as part of `rest` (not matched separately), so whichever one the
+# source table uses -- "T" per ISO 8601, or the equally common space -- is spliced back verbatim.
+_DATE_PREFIX_PATTERN = re.compile(r"^(?P<date>\d{4}-\d{2}-\d{2})(?P<rest>[T ].*)?$")
 
 
 def _shift_lookback(value: t.Any, lookback_days: int) -> t.Any | None:
     """Shift a replication-key starting value back by `lookback_days`.
 
-    For strings, only the calendar date is recomputed; the time-of-day/fractional-
-    seconds/timezone substring (if any) is spliced back verbatim rather than
-    reparsed and reformatted. DynamoDB compares this value against the raw stored
-    attribute lexicographically, so it must keep whatever precision/format the
-    source table already uses — not reconstructing that substring at all is safer
-    than trying to reproduce it. Numeric epoch values (seconds or milliseconds, by
-    magnitude) are handled by plain arithmetic. Returns None if `value`'s type or
-    format isn't recognized, leaving the decision to skip the lookback to the caller.
+    For strings, only the calendar date is recomputed; the separator and the time-of-day/
+    fractional-seconds/timezone substring after it (if any) are spliced back verbatim
+    rather than reparsed and reformatted. DynamoDB compares this value against the raw
+    stored attribute lexicographically, so it must keep whatever precision/format the
+    source table already uses — not reconstructing that substring at all is safer than
+    trying to reproduce it. Numeric epoch values (seconds or milliseconds, by magnitude)
+    are handled by plain arithmetic. Returns None if `value`'s type or format isn't
+    recognized, leaving the decision to skip the lookback to the caller.
     """
     if isinstance(value, str):
-        match = _ISO8601_DATE_PATTERN.match(value)
+        match = _DATE_PREFIX_PATTERN.match(value)
         if not match:
             return None
         try:
@@ -207,8 +209,9 @@ class TableStream(Stream):
         shifted = _shift_lookback(value, lookback_days)
         if shifted is None:
             user_logger.warning(
-                f"[{self._table_name}] Replication key value {value!r} isn't a recognized "
-                "ISO 8601 datetime string or numeric epoch; skipping lookback window."
+                f"[{self._table_name}] Replication key value {value!r} doesn't start with a "
+                "YYYY-MM-DD date and isn't a numeric epoch; skipping lookback window. Incremental "
+                "runs are unprotected against eventually consistent reads missing recent writes."
             )
             return value
         return shifted

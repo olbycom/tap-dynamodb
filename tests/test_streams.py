@@ -9,6 +9,19 @@ def test_shift_lookback_iso_string_with_fractional_seconds():
     assert _shift_lookback("2026-07-29T00:00:00.123456Z", 7) == "2026-07-22T00:00:00.123456Z"
 
 
+def test_shift_lookback_space_separated_datetime():
+    # The format DatahubProcessos_PROD actually stores (space separator, no timezone).
+    assert _shift_lookback("2026-08-03 23:50:02", 7) == "2026-07-27 23:50:02"
+
+
+def test_shift_lookback_space_separated_preserves_fractional_seconds():
+    assert _shift_lookback("2026-08-03 23:50:02.123", 7) == "2026-07-27 23:50:02.123"
+
+
+def test_shift_lookback_date_only():
+    assert _shift_lookback("2026-08-03", 7) == "2026-07-27"
+
+
 def test_shift_lookback_iso_string_with_offset():
     assert _shift_lookback("2026-07-29T00:00:00+00:00", 1) == "2026-07-28T00:00:00+00:00"
 

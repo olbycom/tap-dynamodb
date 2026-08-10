@@ -288,7 +288,7 @@ def test_get_table_json_schema_skips_check_without_query_index(monkeypatch):
     assert warnings == []
 
 
-def create_table_with_gsi(moto_conn, name, gsi_name, gsi_sort_key):
+def create_table_with_gsi(moto_conn, name, gsi_name, gsi_sort_key, projection=None):
     return moto_conn.create_table(
         TableName=name,
         KeySchema=[
@@ -309,7 +309,7 @@ def create_table_with_gsi(moto_conn, name, gsi_name, gsi_sort_key):
                     {"AttributeName": "ShardKey", "KeyType": "HASH"},
                     {"AttributeName": gsi_sort_key, "KeyType": "RANGE"},
                 ],
-                "Projection": {"ProjectionType": "ALL"},
+                "Projection": projection or {"ProjectionType": "ALL"},
                 "ProvisionedThroughput": {"ReadCapacityUnits": 10, "WriteCapacityUnits": 10},
             }
         ],
@@ -388,6 +388,55 @@ def test_find_query_index_returns_matching_gsi():
     assert result["IndexName"] == "my-gsi"
     assert {"AttributeName": "ShardKey", "KeyType": "HASH"} in result["KeySchema"]
     assert {"AttributeName": "UpdatedAt", "KeyType": "RANGE"} in result["KeySchema"]
+
+
+@mock_aws
+def test_find_query_index_warns_and_returns_none_on_keys_only_projection(monkeypatch):
+    # PREP
+    moto_conn = boto3.resource("dynamodb", region_name="us-west-2")
+    create_table_with_gsi(moto_conn, "table", "my-gsi", "UpdatedAt", projection={"ProjectionType": "KEYS_ONLY"})
+    # END PREP
+
+    warnings = []
+    monkeypatch.setattr(
+        "tap_dynamodb.dynamodb_connector.user_logger.warning",
+        lambda msg: warnings.append(msg),
+    )
+
+    db_obj = DynamoDbConnector(SAMPLE_CONFIG)
+    result = db_obj.find_query_index("table", "UpdatedAt")
+
+    assert result is None
+    assert len(warnings) == 1
+    assert "KEYS_ONLY" in warnings[0]
+    assert "my-gsi" in warnings[0]
+
+
+@mock_aws
+def test_find_query_index_warns_and_returns_none_on_include_projection(monkeypatch):
+    # PREP
+    moto_conn = boto3.resource("dynamodb", region_name="us-west-2")
+    create_table_with_gsi(
+        moto_conn,
+        "table",
+        "my-gsi",
+        "UpdatedAt",
+        projection={"ProjectionType": "INCLUDE", "NonKeyAttributes": ["info"]},
+    )
+    # END PREP
+
+    warnings = []
+    monkeypatch.setattr(
+        "tap_dynamodb.dynamodb_connector.user_logger.warning",
+        lambda msg: warnings.append(msg),
+    )
+
+    db_obj = DynamoDbConnector(SAMPLE_CONFIG)
+    result = db_obj.find_query_index("table", "UpdatedAt")
+
+    assert result is None
+    assert len(warnings) == 1
+    assert "INCLUDE" in warnings[0]
 
 
 @mock_aws

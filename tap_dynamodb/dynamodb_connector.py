@@ -279,10 +279,25 @@ class DynamoDbConnector(AWSBotoConnector[DynamoDBServiceResource, DynamoDBClient
             return None
 
         gsi = matches[0]
+
+        # A GSI only carries the attributes it projects. Querying one that projects less than ALL
+        # would yield records missing most of their fields -- and since the destination upserts on
+        # the primary key, those gaps would overwrite existing populated columns with nulls. Falling
+        # back to Scan is slower but can't corrupt the table.
+        projection_type = gsi.get("Projection", {}).get("ProjectionType")
+        if projection_type != "ALL":
+            user_logger.warning(
+                f"[{table_name}] GSI '{gsi['IndexName']}' matches replication key '{replication_key}', "
+                f"but its projection is {projection_type}, not ALL, so a Query against it would return "
+                "incomplete records. Falling back to Scan to avoid overwriting existing columns with "
+                "nulls on merge."
+            )
+            return None
+
         user_logger.info(
-            f"[{table_name}] Found GSI '{gsi['IndexName']}' matching replication key '{replication_key}'. "
-            "Configure table_partition_key_values for this table to enable Query-based incremental "
-            "extraction instead of Scan."
+            f"[{table_name}] Found GSI '{gsi['IndexName']}' matching replication key '{replication_key}' "
+            "(projection: ALL). Configure table_partition_key_values for this table to enable "
+            "Query-based incremental extraction instead of Scan."
         )
         return {"IndexName": gsi["IndexName"], "KeySchema": gsi["KeySchema"]}
 
