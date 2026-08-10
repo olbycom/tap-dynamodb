@@ -64,6 +64,24 @@ class TapDynamoDB(Tap):
             ),
             default=7,
         ),
+        th.Property(
+            "table_partition_key_values",
+            th.ArrayType(
+                th.ObjectType(
+                    th.Property("table_name", th.StringType, required=True),
+                    th.Property("partition_key_values", th.StringType, required=True),
+                )
+            ),
+            description=(
+                "For a table with a GSI whose sort key matches its configured replication key "
+                "(auto-detected via DescribeTable), the full list of partition key values to "
+                "scatter-gather Query across -- e.g. shard values. When set, incremental "
+                "extraction Querys this GSI once per value instead of Scanning the whole "
+                "table. DynamoDB has no way to enumerate these values automatically, so this "
+                "list must be kept up to date manually -- we'll warn if sampled data contains "
+                "a value missing from it, since that data would otherwise be silently skipped."
+            ),
+        ),
     ).to_dict()
 
     def discover_streams(self) -> list[streams.TableStream]:
@@ -81,6 +99,7 @@ class TapDynamoDB(Tap):
             stream_metadata = tap_metadata.get(self._normalize_stream_name(table_name), {})
             replication_key: str | None = stream_metadata.get("replication-key")
             replication_method: str = stream_metadata.get("replication-method", REPLICATION_FULL_TABLE)
+            query_index = dynamodb_conn.find_query_index(table_name, replication_key) if replication_key else None
             stream = streams.TableStream(
                 tap=self,
                 name=table_name,
@@ -88,6 +107,7 @@ class TapDynamoDB(Tap):
                 infer_schema_sample_size=self.config.get("infer_schema_sample_size"),
                 replication_key=replication_key,
                 replication_method=replication_method,
+                query_index=query_index,
             )
             discovered_streams.append(stream)
 

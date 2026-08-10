@@ -81,6 +81,49 @@
                         "default": 7,
                         "el_type": "extractor",
                         "description": "For tables replicated incrementally, how many days to re-scan before the last saved replication key value. Protects against DynamoDB's eventually consistent reads silently skipping records that were mid-write during a previous scan. Set to 0 to disable."
+                    },
+                    "table_scan_kwargs": {
+                        "type": "object",
+                        "order": 6,
+                        "title": "Per-table Scan overrides (advanced)",
+                        "el_type": "extractor",
+                        "description": "Advanced: map a table name to boto3 Scan kwargs that override the default when reading that table. Example: {\"MyTable\": {\"ConsistentRead\": true, \"ProjectionExpression\": \"id, updated_at\"}}",
+                        "advanced_settings": true,
+                        "additionalProperties": {
+                            "type": "object"
+                        }
+                    },
+                    "table_partition_key_values": {
+                        "type": "array",
+                        "format": "array-form",
+                        "items": {
+                            "type": "object",
+                            "required": [
+                                "table_name",
+                                "partition_key_values"
+                            ],
+                            "properties": {
+                                "table_name": {
+                                    "type": "string",
+                                    "title": "Table name",
+                                    "order": 1,
+                                    "el_type": "extractor",
+                                    "description": "The DynamoDB table this applies to. The GSI to use is auto-detected -- we look for one whose sort key matches this table's configured incremental replication key."
+                                },
+                                "partition_key_values": {
+                                    "type": "string",
+                                    "title": "Partition key values",
+                                    "order": 2,
+                                    "el_type": "extractor",
+                                    "description": "Comma-separated list of every partition key value on that GSI (e.g. shard values like SHARD#1,SHARD#2,SHARD#3). DynamoDB has no way to enumerate these automatically, so this list must be kept up to date manually -- we'll warn if a value shows up in the data that isn't listed here."
+                                }
+                            }
+                        },
+                        "el_type": "extractor",
+                        "order": 7,
+                        "title": "Incremental GSI partition key values (advanced)",
+                        "description": "For a table with a GSI whose sort key matches its configured incremental replication key, the full list of partition key values on that index. When set, incremental extraction Querys this GSI once per value instead of Scanning the whole table. Example: [{\"table_name\": \"MyTable\", \"partition_key_values\": \"SHARD#1,SHARD#2,SHARD#3\"}]. Keep this list up to date manually -- we'll warn if the data contains a value missing from it, since that data would otherwise be silently skipped.",
+                        "advanced_settings": true
                     }
                 }
             }

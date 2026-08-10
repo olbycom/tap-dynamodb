@@ -58,6 +58,19 @@ def _shift_lookback(value: t.Any, lookback_days: int) -> t.Any | None:
     return None
 
 
+def _parse_partition_key_values(entries: list, table_name: str) -> set[str] | None:
+    """Find `table_name`'s entry in `table_partition_key_values` and parse its comma-separated values.
+
+    Returns None if the table has no entry configured (distinct from an empty set, which would
+    mean an entry exists but its value list is empty).
+    """
+    for entry in entries:
+        if entry.get("table_name") == table_name:
+            raw = entry.get("partition_key_values", "")
+            return {v.strip() for v in raw.split(",") if v.strip()}
+    return None
+
+
 def _serialize_dynamodb_value(obj: t.Any) -> t.Any:
     """JSON serializer for DynamoDB types."""
     if isinstance(obj, Decimal):
@@ -84,6 +97,7 @@ class TableStream(Stream):
         infer_schema_sample_size: int,
         replication_key: str | None,
         replication_method: str,
+        query_index: dict | None = None,
     ):
         """Initialize a new TableStream object.
 
@@ -95,6 +109,8 @@ class TableStream(Stream):
                 inferring the schema.
             replication_key: The key to use for incremental replication.
             replication_method: The method to use for incremental replication.
+            query_index: The GSI {"IndexName", "KeySchema"} auto-discovered for this table's
+                replication key, if any (see DynamoDbConnector.find_query_index).
         """
         self.user_defined_replication_key = replication_key
         self.user_defined_replication_method = replication_method
@@ -105,6 +121,10 @@ class TableStream(Stream):
         self._schema: dict = {}
         self._infer_schema_sample_size = infer_schema_sample_size
         self._table_scan_kwargs: dict = tap.config.get("table_scan_kwargs", {}).get(name, {})
+        self._query_index = query_index
+        self._partition_key_values = _parse_partition_key_values(
+            tap.config.get("table_partition_key_values", []), name
+        )
         if tap.input_catalog:
             catalog_entry = tap.input_catalog.get(name)
             if catalog_entry:
@@ -140,6 +160,8 @@ class TableStream(Stream):
                     self._table_name,
                     self._infer_schema_sample_size,
                     self._table_scan_kwargs,
+                    self._query_index["KeySchema"] if self._query_index else None,
+                    self._partition_key_values,
                 )
                 # Coerce the replication key to a datetime if it's a string
                 if (
@@ -191,26 +213,67 @@ class TableStream(Stream):
             return value
         return shifted
 
+    def _get_batches(self, starting_value: t.Any) -> Iterable[list]:
+        """Choose scatter-gather Query (if eligible) or Scan, and yield item batches.
+
+        Query is only used once there's an actual starting value to filter on -- the very
+        first run for a stream (no bookmark yet) needs every item regardless of partition,
+        so it uses Scan same as it always has, exactly like the FilterExpression-less Scan
+        path below does when there's no starting value at all.
+        """
+        if self._query_index and self._partition_key_values and starting_value is not None:
+            yield from self._get_query_batches(starting_value)
+            return
+
+        if starting_value is not None:
+            self._table_scan_kwargs["FilterExpression"] = "#incremental_filter > :incremental_value"
+            self._table_scan_kwargs["ExpressionAttributeNames"] = {"#incremental_filter": self.replication_key}
+            self._table_scan_kwargs["ExpressionAttributeValues"] = {":incremental_value": starting_value}
+
+        yield from self._dynamodb_conn.get_items_iter(self._table_name, self._table_scan_kwargs)
+
+    def _get_query_batches(self, starting_value: t.Any) -> Iterable[list]:
+        """Scatter-gather Query the discovered GSI once per configured partition key value."""
+        partition_key = next(
+            (k["AttributeName"] for k in self._query_index["KeySchema"] if k["KeyType"] == "HASH"),
+            None,
+        )
+        if not partition_key:
+            user_logger.warning(
+                f"[{self._table_name}] Discovered GSI '{self._query_index['IndexName']}' has no partition "
+                "key in its KeySchema; falling back to Scan."
+            )
+            yield from self._dynamodb_conn.get_items_iter(self._table_name, self._table_scan_kwargs)
+            return
+
+        user_logger.info(
+            f"[{self._table_name}] Using Query against GSI '{self._query_index['IndexName']}' across "
+            f"{len(self._partition_key_values)} partition key value(s) instead of Scan."
+        )
+        for shard_value in sorted(self._partition_key_values):
+            query_kwargs = {
+                "IndexName": self._query_index["IndexName"],
+                "KeyConditionExpression": "#pk = :pk AND #rk > :cutoff",
+                "ExpressionAttributeNames": {"#pk": partition_key, "#rk": self.replication_key},
+                "ExpressionAttributeValues": {":pk": shard_value, ":cutoff": starting_value},
+            }
+            yield from self._dynamodb_conn.get_query_items_iter(self._table_name, query_kwargs)
+
     def get_records(self, context: Context | None) -> Iterable[dict]:
         """Generate records from the stream."""
         total_records = 0
+        starting_value = None
         if self._replication_key and self.get_starting_replication_key_value(context):
             starting_value = self._apply_lookback_window(self.get_starting_replication_key_value(context))
             user_logger.info(
                 f"[{self._table_name}] Using replication key: {self.replication_key} with starting value: "
                 f"{starting_value} (lookback: {self.config.get('replication_key_lookback_days', 7)} days)"
             )
-            self._table_scan_kwargs["FilterExpression"] = "#incremental_filter > :incremental_value"
-            self._table_scan_kwargs["ExpressionAttributeNames"] = {"#incremental_filter": self.replication_key}
-            self._table_scan_kwargs["ExpressionAttributeValues"] = {":incremental_value": starting_value}
 
         log_interval = 1000
         next_log_at = log_interval
         try:
-            for batch in self._dynamodb_conn.get_items_iter(
-                self._table_name,
-                self._table_scan_kwargs,
-            ):
+            for batch in self._get_batches(starting_value):
                 total_records += len(batch)
                 if total_records >= next_log_at:
                     user_logger.info(f"[{self._table_name}] {total_records} records processed so far...")

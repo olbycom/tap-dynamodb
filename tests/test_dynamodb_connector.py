@@ -210,6 +210,277 @@ def test_get_sample_records():
     assert len(records) == 2
 
 
+@mock_aws
+def test_get_table_json_schema_warns_on_unconfigured_partition_key_value(monkeypatch):
+    # PREP
+    moto_conn = boto3.resource("dynamodb", region_name="us-west-2")
+    table = create_table(moto_conn, "table")
+    for num in range(5):
+        table.put_item(Item={"year": 2023, "title": f"foo_{num}", "info": {"plot": "bar"}})
+    # END PREP
+
+    warnings = []
+    monkeypatch.setattr(
+        "tap_dynamodb.dynamodb_connector.user_logger.warning",
+        lambda msg: warnings.append(msg),
+    )
+
+    db_obj = DynamoDbConnector(SAMPLE_CONFIG)
+    db_obj.get_table_json_schema(
+        "table",
+        5,
+        {},
+        key_schema=[{"AttributeName": "title", "KeyType": "HASH"}],
+        partition_key_values={"foo_0", "foo_1"},
+    )
+
+    assert len(warnings) == 1
+    assert "title" in warnings[0]
+    assert "foo_2" in warnings[0]
+    assert "foo_3" in warnings[0]
+    assert "foo_4" in warnings[0]
+
+
+@mock_aws
+def test_get_table_json_schema_no_warning_when_fully_covered(monkeypatch):
+    # PREP
+    moto_conn = boto3.resource("dynamodb", region_name="us-west-2")
+    table = create_table(moto_conn, "table")
+    for num in range(5):
+        table.put_item(Item={"year": 2023, "title": f"foo_{num}", "info": {"plot": "bar"}})
+    # END PREP
+
+    warnings = []
+    monkeypatch.setattr(
+        "tap_dynamodb.dynamodb_connector.user_logger.warning",
+        lambda msg: warnings.append(msg),
+    )
+
+    db_obj = DynamoDbConnector(SAMPLE_CONFIG)
+    db_obj.get_table_json_schema(
+        "table",
+        5,
+        {},
+        key_schema=[{"AttributeName": "title", "KeyType": "HASH"}],
+        partition_key_values={f"foo_{n}" for n in range(5)},
+    )
+
+    assert warnings == []
+
+
+@mock_aws
+def test_get_table_json_schema_skips_check_without_query_index(monkeypatch):
+    # PREP
+    moto_conn = boto3.resource("dynamodb", region_name="us-west-2")
+    table = create_table(moto_conn, "table")
+    table.put_item(Item={"year": 2023, "title": "foo_0", "info": {"plot": "bar"}})
+    # END PREP
+
+    warnings = []
+    monkeypatch.setattr(
+        "tap_dynamodb.dynamodb_connector.user_logger.warning",
+        lambda msg: warnings.append(msg),
+    )
+
+    db_obj = DynamoDbConnector(SAMPLE_CONFIG)
+    db_obj.get_table_json_schema("table", 5, {})
+
+    assert warnings == []
+
+
+def create_table_with_gsi(moto_conn, name, gsi_name, gsi_sort_key):
+    return moto_conn.create_table(
+        TableName=name,
+        KeySchema=[
+            {"AttributeName": "year", "KeyType": "HASH"},
+            {"AttributeName": "title", "KeyType": "RANGE"},
+        ],
+        AttributeDefinitions=[
+            {"AttributeName": "year", "AttributeType": "N"},
+            {"AttributeName": "title", "AttributeType": "S"},
+            {"AttributeName": "ShardKey", "AttributeType": "S"},
+            {"AttributeName": gsi_sort_key, "AttributeType": "S"},
+        ],
+        ProvisionedThroughput={"ReadCapacityUnits": 10, "WriteCapacityUnits": 10},
+        GlobalSecondaryIndexes=[
+            {
+                "IndexName": gsi_name,
+                "KeySchema": [
+                    {"AttributeName": "ShardKey", "KeyType": "HASH"},
+                    {"AttributeName": gsi_sort_key, "KeyType": "RANGE"},
+                ],
+                "Projection": {"ProjectionType": "ALL"},
+                "ProvisionedThroughput": {"ReadCapacityUnits": 10, "WriteCapacityUnits": 10},
+            }
+        ],
+    )
+
+
+@mock_aws
+def test_get_query_items_iter_filters_by_partition_and_sort_key():
+    # PREP
+    moto_conn = boto3.resource("dynamodb", region_name="us-west-2")
+    table = create_table_with_gsi(moto_conn, "table", "my-gsi", "UpdatedAt")
+    table.put_item(Item={"year": 2023, "title": "a", "ShardKey": "SHARD#1", "UpdatedAt": "2026-01-01T00:00:00Z"})
+    table.put_item(Item={"year": 2023, "title": "b", "ShardKey": "SHARD#1", "UpdatedAt": "2026-01-03T00:00:00Z"})
+    table.put_item(Item={"year": 2023, "title": "c", "ShardKey": "SHARD#2", "UpdatedAt": "2026-01-05T00:00:00Z"})
+    # END PREP
+
+    db_obj = DynamoDbConnector(SAMPLE_CONFIG)
+    batches = list(
+        db_obj.get_query_items_iter(
+            "table",
+            {
+                "IndexName": "my-gsi",
+                "KeyConditionExpression": "#pk = :pk AND #rk > :cutoff",
+                "ExpressionAttributeNames": {"#pk": "ShardKey", "#rk": "UpdatedAt"},
+                "ExpressionAttributeValues": {":pk": "SHARD#1", ":cutoff": "2026-01-02T00:00:00Z"},
+            },
+        )
+    )
+    titles = {record["title"] for batch in batches for record in batch}
+
+    # Only "b" matches: same shard as "a"/"b", but after the cutoff (excludes "a"); "c" is a different shard.
+    assert titles == {"b"}
+
+
+@mock_aws
+def test_get_query_items_iter_paginates():
+    # PREP
+    moto_conn = boto3.resource("dynamodb", region_name="us-west-2")
+    table = create_table_with_gsi(moto_conn, "table", "my-gsi", "UpdatedAt")
+    for num in range(5):
+        table.put_item(
+            Item={"year": 2023, "title": f"foo_{num}", "ShardKey": "SHARD#1", "UpdatedAt": f"2026-01-0{num + 1}T00:00:00Z"}
+        )
+    # END PREP
+
+    db_obj = DynamoDbConnector(SAMPLE_CONFIG)
+    iterations = 0
+    records = []
+    for batch in db_obj.get_query_items_iter(
+        "table",
+        {
+            "IndexName": "my-gsi",
+            "Limit": 1,
+            "KeyConditionExpression": "#pk = :pk",
+            "ExpressionAttributeNames": {"#pk": "ShardKey"},
+            "ExpressionAttributeValues": {":pk": "SHARD#1"},
+        },
+    ):
+        iterations += 1
+        records.extend(batch)
+
+    assert iterations == 5
+    assert len(records) == 5
+
+
+@mock_aws
+def test_find_query_index_returns_matching_gsi():
+    # PREP
+    moto_conn = boto3.resource("dynamodb", region_name="us-west-2")
+    create_table_with_gsi(moto_conn, "table", "my-gsi", "UpdatedAt")
+    # END PREP
+
+    db_obj = DynamoDbConnector(SAMPLE_CONFIG)
+    result = db_obj.find_query_index("table", "UpdatedAt")
+
+    assert result["IndexName"] == "my-gsi"
+    assert {"AttributeName": "ShardKey", "KeyType": "HASH"} in result["KeySchema"]
+    assert {"AttributeName": "UpdatedAt", "KeyType": "RANGE"} in result["KeySchema"]
+
+
+@mock_aws
+def test_find_query_index_returns_none_when_no_match():
+    # PREP
+    moto_conn = boto3.resource("dynamodb", region_name="us-west-2")
+    create_table_with_gsi(moto_conn, "table", "my-gsi", "UpdatedAt")
+    # END PREP
+
+    db_obj = DynamoDbConnector(SAMPLE_CONFIG)
+    assert db_obj.find_query_index("table", "SomeOtherField") is None
+
+
+@mock_aws
+def test_find_query_index_warns_and_returns_none_on_multiple_matches(monkeypatch):
+    # PREP
+    moto_conn = boto3.resource("dynamodb", region_name="us-west-2")
+    moto_conn.create_table(
+        TableName="table",
+        KeySchema=[{"AttributeName": "year", "KeyType": "HASH"}],
+        AttributeDefinitions=[
+            {"AttributeName": "year", "AttributeType": "N"},
+            {"AttributeName": "ShardKeyA", "AttributeType": "S"},
+            {"AttributeName": "ShardKeyB", "AttributeType": "S"},
+            {"AttributeName": "UpdatedAt", "AttributeType": "S"},
+        ],
+        ProvisionedThroughput={"ReadCapacityUnits": 10, "WriteCapacityUnits": 10},
+        GlobalSecondaryIndexes=[
+            {
+                "IndexName": "gsi-a",
+                "KeySchema": [
+                    {"AttributeName": "ShardKeyA", "KeyType": "HASH"},
+                    {"AttributeName": "UpdatedAt", "KeyType": "RANGE"},
+                ],
+                "Projection": {"ProjectionType": "ALL"},
+                "ProvisionedThroughput": {"ReadCapacityUnits": 10, "WriteCapacityUnits": 10},
+            },
+            {
+                "IndexName": "gsi-b",
+                "KeySchema": [
+                    {"AttributeName": "ShardKeyB", "KeyType": "HASH"},
+                    {"AttributeName": "UpdatedAt", "KeyType": "RANGE"},
+                ],
+                "Projection": {"ProjectionType": "ALL"},
+                "ProvisionedThroughput": {"ReadCapacityUnits": 10, "WriteCapacityUnits": 10},
+            },
+        ],
+    )
+    # END PREP
+
+    warnings = []
+    monkeypatch.setattr(
+        "tap_dynamodb.dynamodb_connector.user_logger.warning",
+        lambda msg: warnings.append(msg),
+    )
+
+    db_obj = DynamoDbConnector(SAMPLE_CONFIG)
+    result = db_obj.find_query_index("table", "UpdatedAt")
+
+    assert result is None
+    assert len(warnings) == 1
+    assert "gsi-a" in warnings[0]
+    assert "gsi-b" in warnings[0]
+
+
+def test_find_query_index_warns_and_returns_none_without_describe_table_access(monkeypatch):
+    from botocore.exceptions import ClientError
+
+    warnings = []
+    monkeypatch.setattr(
+        "tap_dynamodb.dynamodb_connector.user_logger.warning",
+        lambda msg: warnings.append(msg),
+    )
+
+    class _DeniedClient:
+        exceptions = None
+
+        def describe_table(self, TableName):  # noqa: N803 (matches boto3's API)
+            raise ClientError(
+                {"Error": {"Code": "AccessDeniedException", "Message": "not authorized"}},
+                "DescribeTable",
+            )
+
+    db_obj = DynamoDbConnector(SAMPLE_CONFIG)
+    monkeypatch.setattr(DynamoDbConnector, "client", property(lambda self: _DeniedClient()))
+
+    result = db_obj.find_query_index("table", "UpdatedAt")
+
+    assert result is None
+    assert len(warnings) == 1
+    assert "AccessDeniedException" in warnings[0]
+
+
 class _FakeTable:
     def __init__(self):
         self.scan_calls = []
