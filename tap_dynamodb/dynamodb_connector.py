@@ -264,6 +264,10 @@ class DynamoDbConnector(AWSBotoConnector[DynamoDBServiceResource, DynamoDBClient
         ]
 
         if not matches:
+            internal_logger.info(
+                f"[{table_name}] No GSI has '{replication_key}' as its sort key; incremental "
+                "extraction will use Scan."
+            )
             return None
 
         if len(matches) > 1:

@@ -225,6 +225,13 @@ class TableStream(Stream):
             yield from self._get_query_batches(starting_value)
             return
 
+        if self._query_index and self._partition_key_values and starting_value is None:
+            user_logger.info(
+                f"[{self._table_name}] Query scatter-gather is configured but there's no starting "
+                "replication key value yet (first run for this stream) -- using Scan for this "
+                "bootstrap load."
+            )
+
         if starting_value is not None:
             self._table_scan_kwargs["FilterExpression"] = "#incremental_filter > :incremental_value"
             self._table_scan_kwargs["ExpressionAttributeNames"] = {"#incremental_filter": self.replication_key}
@@ -250,6 +257,7 @@ class TableStream(Stream):
             f"[{self._table_name}] Using Query against GSI '{self._query_index['IndexName']}' across "
             f"{len(self._partition_key_values)} partition key value(s) instead of Scan."
         )
+        shard_counts = {}
         for shard_value in sorted(self._partition_key_values):
             query_kwargs = {
                 "IndexName": self._query_index["IndexName"],
@@ -257,7 +265,14 @@ class TableStream(Stream):
                 "ExpressionAttributeNames": {"#pk": partition_key, "#rk": self.replication_key},
                 "ExpressionAttributeValues": {":pk": shard_value, ":cutoff": starting_value},
             }
-            yield from self._dynamodb_conn.get_query_items_iter(self._table_name, query_kwargs)
+            shard_total = 0
+            for batch in self._dynamodb_conn.get_query_items_iter(self._table_name, query_kwargs):
+                shard_total += len(batch)
+                yield batch
+            shard_counts[shard_value] = shard_total
+            user_logger.info(f"[{self._table_name}] Partition key '{shard_value}': {shard_total} record(s).")
+
+        user_logger.info(f"[{self._table_name}] Query scatter-gather complete. Per-shard counts: {shard_counts}")
 
     def get_records(self, context: Context | None) -> Iterable[dict]:
         """Generate records from the stream."""
