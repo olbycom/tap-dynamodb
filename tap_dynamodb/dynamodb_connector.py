@@ -14,6 +14,7 @@ from nekt_singer_sdk import typing as th
 from nekt_singer_sdk.custom_logger import internal_logger, user_logger
 
 from tap_dynamodb.connectors.aws_boto_connector import AWSBotoConnector
+from tap_dynamodb.exception import QueryAccessDeniedException
 from tap_dynamodb.schema_helper import cleanup_schema
 
 ## Monkey Patch
@@ -136,9 +137,14 @@ class DynamoDbConnector(AWSBotoConnector[DynamoDBServiceResource, DynamoDBClient
             try:
                 response = operation(**kwargs)
             except ClientError as err:
+                error_code = err.response["Error"]["Code"]
+                # A denied Query can degrade to a Scan, so let the caller decide rather than
+                # killing the run here. Every other ClientError is still fatal.
+                if operation_name == "query" and error_code == "AccessDeniedException":
+                    raise QueryAccessDeniedException(err.response["Error"]["Message"]) from err
                 user_logger.error(
                     f"[{table_name}] Couldn't {operation_name} {table_name}. AWS Error: "
-                    f"{err.response['Error']['Code']}: {err.response['Error']['Message']}"
+                    f"{error_code}: {err.response['Error']['Message']}"
                 )
                 sys.exit(1)
             except Exception as e:
@@ -294,10 +300,11 @@ class DynamoDbConnector(AWSBotoConnector[DynamoDBServiceResource, DynamoDBClient
             )
             return None
 
+        # Whether this index actually gets used also depends on table_partition_key_values, which
+        # this connector can't see -- TableStream reports the final Query-vs-Scan decision.
         user_logger.info(
-            f"[{table_name}] Found GSI '{gsi['IndexName']}' matching replication key '{replication_key}' "
-            "(projection: ALL). Configure table_partition_key_values for this table to enable "
-            "Query-based incremental extraction instead of Scan."
+            f"[{table_name}] Found GSI '{gsi['IndexName']}' matching replication key "
+            f"'{replication_key}' (projection: ALL)."
         )
         return {"IndexName": gsi["IndexName"], "KeySchema": gsi["KeySchema"]}
 

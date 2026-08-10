@@ -16,6 +16,8 @@ from nekt_singer_sdk.custom_logger import user_logger
 from nekt_singer_sdk.streams import Stream
 from singer_sdk import typing as th
 
+from tap_dynamodb.exception import QueryAccessDeniedException
+
 if t.TYPE_CHECKING:
     from collections.abc import Iterable
 
@@ -127,6 +129,9 @@ class TableStream(Stream):
         self._partition_key_values = _parse_partition_key_values(
             tap.config.get("table_partition_key_values", []), name
         )
+        self._extraction_notices: list[str] = []
+        self._extraction_mode: str = "Scan"
+        self._shard_counts: dict[str, int] = {}
         if tap.input_catalog:
             catalog_entry = tap.input_catalog.get(name)
             if catalog_entry:
@@ -216,31 +221,53 @@ class TableStream(Stream):
             return value
         return shifted
 
-    def _get_batches(self, starting_value: t.Any) -> Iterable[list]:
-        """Choose scatter-gather Query (if eligible) or Scan, and yield item batches.
+    def _notice(self, message: str, *, level: str = "warning") -> None:
+        """Log a notable extraction condition now, and queue it for the end-of-run summary.
 
-        Query is only used once there's an actual starting value to filter on -- the very
-        first run for a stream (no bookmark yet) needs every item regardless of partition,
-        so it uses Scan same as it always has, exactly like the FilterExpression-less Scan
-        path below does when there's no starting value at all.
+        Anything explaining why extraction behaved differently than configured belongs here:
+        these lines scroll far out of view during a multi-hour run, and the summary at the end
+        is where they actually get read.
         """
-        if self._query_index and self._partition_key_values and starting_value is not None:
-            yield from self._get_query_batches(starting_value)
-            return
+        getattr(user_logger, level)(f"[{self._table_name}] {message}")
+        self._extraction_notices.append(message)
 
-        if self._query_index and self._partition_key_values and starting_value is None:
-            user_logger.info(
-                f"[{self._table_name}] Query scatter-gather is configured but there's no starting "
-                "replication key value yet (first run for this stream) -- using Scan for this "
-                "bootstrap load."
-            )
-
+    def _scan_batches(self, starting_value: t.Any) -> Iterable[list]:
+        """Yield item batches via Scan, filtering on the replication key when there's a cutoff."""
         if starting_value is not None:
             self._table_scan_kwargs["FilterExpression"] = "#incremental_filter > :incremental_value"
             self._table_scan_kwargs["ExpressionAttributeNames"] = {"#incremental_filter": self.replication_key}
             self._table_scan_kwargs["ExpressionAttributeValues"] = {":incremental_value": starting_value}
 
         yield from self._dynamodb_conn.get_items_iter(self._table_name, self._table_scan_kwargs)
+
+    def _get_batches(self, starting_value: t.Any) -> Iterable[list]:
+        """Choose scatter-gather Query (if eligible) or Scan, and yield item batches.
+
+        Query is only used once there's an actual starting value to filter on -- the very
+        first run for a stream (no bookmark yet) needs every item regardless of partition,
+        so it uses Scan same as it always has, exactly like the Scan path does when there's
+        no starting value at all.
+        """
+        if self._query_index and self._partition_key_values and starting_value is not None:
+            yield from self._get_query_batches(starting_value)
+            return
+
+        if self._query_index and not self._partition_key_values:
+            self._notice(
+                f"GSI '{self._query_index['IndexName']}' is available for Query-based incremental "
+                "extraction, but table_partition_key_values isn't configured for this table -- "
+                "using Scan. Configuring it would read only changed records instead of the whole table.",
+                level="info",
+            )
+        elif self._query_index and self._partition_key_values and starting_value is None:
+            self._notice(
+                "Query scatter-gather is configured but there's no starting replication key value "
+                "yet (first run for this stream) -- using Scan for this bootstrap load.",
+                level="info",
+            )
+
+        self._extraction_mode = "Scan"
+        yield from self._scan_batches(starting_value)
 
     def _get_query_batches(self, starting_value: t.Any) -> Iterable[list]:
         """Scatter-gather Query the discovered GSI once per configured partition key value."""
@@ -249,18 +276,21 @@ class TableStream(Stream):
             None,
         )
         if not partition_key:
-            user_logger.warning(
-                f"[{self._table_name}] Discovered GSI '{self._query_index['IndexName']}' has no partition "
-                "key in its KeySchema; falling back to Scan."
+            self._notice(
+                f"Discovered GSI '{self._query_index['IndexName']}' has no partition key in its "
+                "KeySchema; falling back to Scan."
             )
-            yield from self._dynamodb_conn.get_items_iter(self._table_name, self._table_scan_kwargs)
+            self._extraction_mode = "Scan (fell back: GSI has no partition key)"
+            yield from self._scan_batches(starting_value)
             return
 
+        self._extraction_mode = f"Query on GSI '{self._query_index['IndexName']}'"
         user_logger.info(
             f"[{self._table_name}] Using Query against GSI '{self._query_index['IndexName']}' across "
             f"{len(self._partition_key_values)} partition key value(s) instead of Scan."
         )
-        shard_counts = {}
+        shard_counts: dict[str, int] = {}
+        emitted = 0
         for shard_value in sorted(self._partition_key_values):
             query_kwargs = {
                 "IndexName": self._query_index["IndexName"],
@@ -269,12 +299,38 @@ class TableStream(Stream):
                 "ExpressionAttributeValues": {":pk": shard_value, ":cutoff": starting_value},
             }
             shard_total = 0
-            for batch in self._dynamodb_conn.get_query_items_iter(self._table_name, query_kwargs):
-                shard_total += len(batch)
-                yield batch
+            try:
+                for batch in self._dynamodb_conn.get_query_items_iter(self._table_name, query_kwargs):
+                    shard_total += len(batch)
+                    emitted += len(batch)
+                    yield batch
+            except QueryAccessDeniedException as err:
+                # Querying a GSI needs dynamodb:Query on the index ARN, which is a separate
+                # resource from the table ARN -- a common policy gap. Scanning still works, so
+                # degrade to it rather than failing the run outright.
+                if emitted:
+                    # Re-running as a Scan would re-emit what we already yielded. Harmless for an
+                    # upsert destination, but ambiguous enough that failing loudly is better.
+                    user_logger.error(
+                        f"[{self._table_name}] dynamodb:Query was denied partway through extraction "
+                        f"(after {emitted} record(s)): {err}"
+                    )
+                    sys.exit(1)
+                self._notice(
+                    f"dynamodb:Query denied on GSI '{self._query_index['IndexName']}' -- falling back "
+                    "to a full-table Scan, which is much slower and reads the entire table. Grant "
+                    "dynamodb:Query on the index ARN (arn:aws:dynamodb:<region>:<account>:table/"
+                    f"{self._table_name}/index/*), which is a separate IAM resource from the table "
+                    f"ARN. AWS said: {err}"
+                )
+                self._extraction_mode = "Scan (fell back: dynamodb:Query denied on the index)"
+                yield from self._scan_batches(starting_value)
+                return
+
             shard_counts[shard_value] = shard_total
             user_logger.info(f"[{self._table_name}] Partition key '{shard_value}': {shard_total} record(s).")
 
+        self._shard_counts = shard_counts
         user_logger.info(f"[{self._table_name}] Query scatter-gather complete. Per-shard counts: {shard_counts}")
 
     def get_records(self, context: Context | None) -> Iterable[dict]:
@@ -303,10 +359,29 @@ class TableStream(Stream):
                         user_logger.error(f"Error processing individual record: {record}. Error details: {str(e)}")
                         sys.exit(1)
             user_logger.info(f"[{self._table_name}] Extraction finished. Total records processed: {total_records}")
+            self._log_extraction_summary(total_records)
         except Exception as e:
             user_logger.error(f"Error getting records for table {self._table_name}. Error details: {str(e)}")
             user_logger.error(f"Table scan kwargs: {self._table_scan_kwargs}")
             sys.exit(1)
+
+    def _log_extraction_summary(self, total_records: int) -> None:
+        """Emit a recap of how extraction actually ran, at the end where users read the logs."""
+        lines = [
+            f"[{self._table_name}] Extraction summary",
+            f"  Mode:    {self._extraction_mode}",
+            f"  Records: {total_records:,}",
+        ]
+        if self._shard_counts:
+            counts = ", ".join(f"{shard}={count:,}" for shard, count in sorted(self._shard_counts.items()))
+            lines.append(f"  Per partition key: {counts}")
+
+        if self._extraction_notices:
+            lines.append(f"  Notices ({len(self._extraction_notices)}):")
+            lines.extend(f"    - {notice}" for notice in self._extraction_notices)
+            user_logger.warning("\n".join(lines))
+        else:
+            user_logger.info("\n".join(lines))
 
     def process_record(self, record: dict) -> dict:
         if self.config.get("extraction_mode") == "envelope":
