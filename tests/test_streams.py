@@ -67,6 +67,7 @@ class _FakeConn:
     def __init__(self):
         self.scan_calls = []
         self.query_calls = []
+        self.unconfigured_partition_key_values = {}
 
     def get_items_iter(self, table_name, kwargs):
         self.scan_calls.append((table_name, kwargs))
@@ -206,6 +207,22 @@ def test_get_batches_notices_when_gsi_available_but_not_configured():
 
     assert len(stream._extraction_notices) == 1
     assert "table_partition_key_values" in stream._extraction_notices[0]
+
+
+def test_log_extraction_summary_repeats_unconfigured_partition_key_drift(monkeypatch):
+    conn = _FakeConn()
+    conn.unconfigured_partition_key_values["MyTable"] = {"TRT"}
+    stream = _make_table_stream(query_index=_GSI, partition_key_values={"TRT#0"}, dynamodb_conn=conn)
+
+    logged = []
+    monkeypatch.setattr("tap_dynamodb.streams.user_logger.warning", lambda msg: logged.append(msg))
+
+    stream._log_extraction_summary(10)
+
+    # The drift warning fires during schema inference; the summary must surface it again at the end.
+    assert len(logged) == 1
+    assert "'TRT'" in logged[0]
+    assert "were NOT extracted" in logged[0]
 
 
 def test_log_extraction_summary_includes_mode_and_notices(monkeypatch):

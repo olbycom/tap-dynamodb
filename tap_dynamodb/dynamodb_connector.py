@@ -48,6 +48,9 @@ class DynamoDbConnector(AWSBotoConnector[DynamoDBServiceResource, DynamoDBClient
             config: The connector configuration.
         """
         super().__init__(config, "dynamodb")
+        # Per-table partition key values seen in sampled data but absent from config, recorded by
+        # _check_partition_key_coverage so TableStream can repeat it in its extraction summary.
+        self.unconfigured_partition_key_values: dict[str, set] = {}
 
     @staticmethod
     def _coerce_types(record):
@@ -172,10 +175,28 @@ class DynamoDbConnector(AWSBotoConnector[DynamoDBServiceResource, DynamoDBClient
         if "Limit" not in scan_kwargs:
             scan_kwargs["Limit"] = sample_size
 
+        # DynamoDB caps a Scan page at 1MB regardless of Limit, so a large sample takes many
+        # round trips and minutes of wall clock. Announce it and report progress -- otherwise
+        # this phase is completely silent and reads as a hung run.
+        user_logger.info(
+            f"[{table_name}] Inferring schema by sampling up to {sample_size:,} records "
+            "(no records are extracted during this step)..."
+        )
+        log_interval = max(1000, sample_size // 10)
+        next_log_at = log_interval
+
         for batch in self.get_items_iter(table_name, scan_kwargs):
             sample_records.extend(batch)
+            if len(sample_records) >= next_log_at:
+                user_logger.info(
+                    f"[{table_name}] Sampled {len(sample_records):,}/{sample_size:,} records for "
+                    "schema inference..."
+                )
+                next_log_at = len(sample_records) + log_interval
             if len(sample_records) >= sample_size:
                 break
+
+        user_logger.info(f"[{table_name}] Sampled {len(sample_records):,} records; inferring schema...")
         return sample_records
 
     def get_table_json_schema(
@@ -234,11 +255,12 @@ class DynamoDbConnector(AWSBotoConnector[DynamoDBServiceResource, DynamoDBClient
         unconfigured = seen_values - configured_values
 
         if unconfigured:
+            self.unconfigured_partition_key_values[table_name] = unconfigured
             user_logger.warning(
-                f"[{table_name}] Sampled records contain '{partition_key}' values not present in "
-                f"table_partition_key_values: {sorted(unconfigured)}. If this table uses "
-                "scatter-gather Query extraction, it may be silently missing records outside the "
-                "configured partition key values."
+                f"[{table_name}] Sampled records contain '{partition_key}' values missing from "
+                f"table_partition_key_values: {sorted(unconfigured)}. Records with those values are "
+                "NOT being extracted -- Query only covers the configured values. Add them to "
+                f"table_partition_key_values for this table. (Configured: {sorted(configured_values)})"
             )
 
     def find_query_index(self, table_name: str, replication_key: str) -> dict | None:

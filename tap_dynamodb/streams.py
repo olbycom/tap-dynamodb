@@ -367,6 +367,16 @@ class TableStream(Stream):
 
     def _log_extraction_summary(self, total_records: int) -> None:
         """Emit a recap of how extraction actually ran, at the end where users read the logs."""
+        # Raised during schema inference, long before extraction ends -- repeat it here so it
+        # isn't buried thousands of lines up.
+        unconfigured = self._dynamodb_conn.unconfigured_partition_key_values.get(self._table_name)
+        if unconfigured:
+            self._extraction_notices.append(
+                f"Sampled data contained partition key values missing from "
+                f"table_partition_key_values: {sorted(unconfigured)}. Records with those values "
+                "were NOT extracted -- add them to the config."
+            )
+
         lines = [
             f"[{self._table_name}] Extraction summary",
             f"  Mode:    {self._extraction_mode}",
